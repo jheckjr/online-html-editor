@@ -1,0 +1,11 @@
+extends layout
+
+block content
+  h1 HTML Editor
+  p Please enter HTML code into the area below to create a page.
+
+  form#formEditHtml(name="edithtml",method="post",action="/updatehtml")
+    textarea#textHtml(name="newhtml", rows="6", cols="80")
+      | #{inputStr}
+    br
+    button#btnSubmit(type="submit") Submit
