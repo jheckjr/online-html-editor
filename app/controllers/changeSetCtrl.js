@@ -5,31 +5,49 @@
 function changeSetCtrl() {
   this.merge = function(setA, setB) {
     let newText = new Array();
-    let minLength = Math.min(setA.endLen, setB.endLen);
-    let maxLength = Math.max(setA.endLen, setB.endLen);
+    let idxA = 0;
+    let idxB = 0;
 
-    for (let i = 0; i < minLength; i++) {
-      if (setA.text[i] === setB.text[i] && Number.isInteger(setA.text[i])) {
-        // if char in A and B is matching integer, add to array
-        newText.push(i);
+    while (idxA < setA.endLen && idxB < setB.endLen) {
+      // Add retained characters in both sets
+      if ((idxA == idxB) && (setA.text[idxA] === setB.text[idxB]) &&
+        (Number.isInteger(setA.text[idxA]))) {
+        newText.push(idxA);
+        idxA += 1;
+        idxB += 1;
       } else {
-        if (!Number.isInteger(setA.text[i])) {
-          // if char in A is char, add to array
-          newText.push(setA.text[i]);
-        }
-        if (!Number.isInteger(setB.text[i])) {
-          // if char in B is char, add to array
-          newText.push(setB.text[i]);
+        if (idxA <= idxB) {
+          // Add continuous inserts from A
+          while (idxA < setA.endLen && !Number.isInteger(setA.text[idxA])) {
+            newText.push(setA.text[idxA]);
+            idxA += 1;
+          }
+
+          idxA += 1;
+        } else {
+          // Add continuous inserts from B
+          while (idxB < setB.endLen && !Number.isInteger(setB.text[idxB])) {
+            newText.push(setB.text[idxB]);
+            idxB += 1;
+          }
+
+          idxB += 1;
         }
       }
     }
 
-    // add any char remaining in longer set to array
-    let remainingText = maxLength === setA.endLen ? setA.text.slice(minLength) : setB.text.slice(minLength);
-    for (let i = minLength; i < maxLength; i++) {
-      if (!Number.isInteger(remainingText[i])) {
-        newText.push(remainingText[i]);
+    // Add any insert remaining in the longer set
+    while (idxA < setA.endLen) {
+      if (!Number.isInteger(setA.text[idxA])) {
+        newText.push(setA.text[idxA]);
       }
+      idxA += 1;
+    }
+    while (idxB < setB.endLen) {
+      if (!Number.isInteger(setB.text[idxB])) {
+        newText.push(setB.text[idxB]);
+      }
+      idxB += 1;
     }
 
     return {
@@ -40,36 +58,52 @@ function changeSetCtrl() {
   };
 
   this.follow = function(setA, setB) {
-    let newText = new Array();
-    let minLength = Math.min(setA.endLen, setB.endLen);
-    let maxLength = Math.max(setA.endLen, setB.endLen);
-
-    for (let i = 0; i < minLength; i++) {
-      if (setA.text[i] === setB.text[i] && Number.isInteger(setA.text[i])) {
-        // if char in A and B is matching integer, add to array
-        newText.push(i);
-      } else if (!Number.isInteger(setA.text[i])) {
-        // if char in A is char, add to array
-        newText.push(i);
-      } else if (!Number.isInteger(setB.text[i])) {
-        // if char in B is char, add to array
-        newText.push(setB.text[i]);
-      }
-    }
-
-    // add any char remaining in longer set to array
-    let remainingText = maxLength === setA.endLen ? setA.text.slice(minLength) : setB.text.slice(minLength);
-    for (let i = minLength; i < maxLength; i++) {
-      if (!Number.isInteger(remainingText[i])) {
-        newText.push(remainingText[i]);
-      }
-    }
-
-    return {
-      beginLen: setA.beginLen,
-      endLen: newText.length,
-      text: newText
+    let mergedSet = this.merge(setA, setB);
+    let followSet = {
+      beginLen: setA.endLen,
+      endLen: mergedSet.endLen,
+      text: mergedSet.text
     };
+
+    // Change inserts in mergedSet from setA to retained characters
+    let startIdx = 0;
+    for (let i = 0; i < followSet.text.length; i++) {
+      // If not a number, find in setA text
+      if (!Number.isInteger(followSet.text[i])) {
+        let nextIdx = setA.text.indexOf(followSet.text[i], startIdx);
+        // If in setA text, change the insert to retained character with index from setA
+        if (nextIdx !== -1) {
+          startIdx = nextIdx + 1;
+          followSet.text[i] = nextIdx;
+        }
+      }
+    }
+
+    return followSet;
+  };
+
+  this.compose = function(setA, setB) {
+    let composeSet = Object.assign({}, setB);
+    composeSet.beginLen = setA.beginLen;
+    let idxA = 0;
+
+    for (let idxB = 0; idxB < setB.endLen; idxB++) {
+      // If retained character in setB, use value in setA
+      if (Number.isInteger(setB.text[idxB])) {
+        setB.text[idxB] = setA.text[idxA];
+        idxA += 1;
+      } else if (Number.isInteger(setA.text[idxA])) {
+        // Skip retained character in setA if insert in setB
+        idxA += 1;
+      }
+
+      // Stop if all characters in setA used
+      if (idxA >= setA.text.length) {
+        break;
+      }
+    }
+
+    return composeSet;
   };
 }
 
