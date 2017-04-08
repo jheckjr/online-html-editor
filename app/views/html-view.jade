@@ -1,0 +1,14 @@
+extends layout
+
+block scripts
+  script(src="/javascripts/jquery.min.js")
+
+block content
+  h1 HTML View
+
+  div#viewDiv
+
+  script(src="/javascripts/html-view.js")
+  script.
+    var htmlStr = !{inputStr};
+    loadHtml(htmlStr)

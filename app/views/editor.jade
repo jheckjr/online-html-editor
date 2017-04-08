@@ -12,7 +12,7 @@ block content
   h1 HTML Editor
   p Please enter HTML code into the area below to create a page.
 
-  form#formEditHtml(name="edithtml",method="post",action="/updatehtml")
+  form#formEditHtml(name="edithtml",method="post",action="/editor")
     textarea#textHtml(name="newhtml", class="codemirror-textarea", rows="6", cols="80")
       | #{inputStr}
     br
@@ -20,3 +20,5 @@ block content
 
   div
     p #{inputStr}
+    br
+    <input type="button" onclick="location.href='/viewhtml';" value="View Rendered HTML"/>

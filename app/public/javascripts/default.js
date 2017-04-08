@@ -3,4 +3,7 @@ $(document).ready(function() {
   var editor = CodeMirror.fromTextArea(code, {
     lineNumbers: true
   });
+  editor.on("change", function(instance, changeObj) {
+    console.log(changeObj.text);
+  });
 });
