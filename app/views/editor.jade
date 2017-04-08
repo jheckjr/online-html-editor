@@ -1,11 +1,22 @@
 extends layout
 
+block styles
+  link(rel="stylesheet", href="/plugin/codemirror/lib/codemirror.css")
+
+block scripts
+  script(src="/javascripts/jquery.min.js")
+  script(src="/plugin/codemirror/lib/codemirror.js")
+  script(src="/javascripts/default.js")
+
 block content
   h1 HTML Editor
   p Please enter HTML code into the area below to create a page.
 
   form#formEditHtml(name="edithtml",method="post",action="/updatehtml")
-    textarea#textHtml(name="newhtml", rows="6", cols="80")
+    textarea#textHtml(name="newhtml", class="codemirror-textarea", rows="6", cols="80")
       | #{inputStr}
     br
     button#btnSubmit(type="submit") Submit
+
+  div
+    p #{inputStr}
