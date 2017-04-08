@@ -1,6 +1,6 @@
 var express = require('express');
 var router = express.Router();
-var inputStr = '<p>hello</p>';
+var inputStr = '<p>hello</p><p>hi\nthere</p>';
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -14,7 +14,7 @@ router.get('/editor', function(req, res) {
 router.post('/editor', function(req, res) {
   var updatedHtml = req.body.newhtml;
   inputStr = updatedHtml;
-  console.log('Received HTML: ' + updatedHtml);
+  console.log('Received HTML: ' + JSON.stringify(updatedHtml));
   res.redirect('editor');
 });
 

@@ -4,6 +4,8 @@ $(document).ready(function() {
     lineNumbers: true
   });
   editor.on("change", function(instance, changeObj) {
-    console.log(changeObj.text);
+    console.log(changeObj);
+    console.log(JSON.stringify(instance.getValue()));
+    console.log(instance.getValue().length);
   });
 });
