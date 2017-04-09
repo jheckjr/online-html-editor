@@ -71,13 +71,15 @@ function getCSFromCM(changeObj, content) {
   }
 
   let numRemaining = content.length - offset;
-  cmCS.ops[0].len = offset;
+  cmCS.ops.push(newOp(OpEnum.EQUAL, offset));
+  cmCS.startLen = content.length;
   cmCS.endLen = content.length;
 
   // Add new line operation
   if (changeObj.text.length == 2) {
     cmCS.ops.push(newOp(OpEnum.ADD, 1));
     cmCS.changeText += '\n';
+    cmCS.startLen -= 1;
     numRemaining -= 1;
   }
 
@@ -85,6 +87,7 @@ function getCSFromCM(changeObj, content) {
   let numToChange = changeObj.removed[0].length;
   if (numToChange > 0) {
     cmCS.ops.push(newOp(OpEnum.REMOVE, numToChange));
+    cmCS.startLen += numToChange;
   }
 
   // Add new characters
@@ -92,6 +95,7 @@ function getCSFromCM(changeObj, content) {
   if (numToChange > 0) {
     cmCS.ops.push(newOp(OpEnum.ADD, numToChange));
     cmCS.changeText += changeObj.text[0];
+    cmCS.startLen -= numToChange;
     numRemaining -= numToChange;
   }
   // Add remaining characters
@@ -148,73 +152,76 @@ function composeCS(csA, csB) {
   let changeTextAIdx = 0; // index of next text in csA changeText
   let changeTextBIdx = 0; // index of next text in csB changeText
   let opsAIdx = 0; // index of next operation in csA
+  let opA = Object.assign({}, csA.ops[opsAIdx]); // next operation in csA
   // Apply each operation in csB to csA
   for (let opsBIdx = 0; opsBIdx < csB.ops.length; opsBIdx++) {
-    let opB = csB.ops[opsBIdx].op;
-    let lenB = csB.ops[opsBIdx].len;
+    let opB = csB.ops[opsBIdx];
 
-    if (opB === OpEnum.EQUAL || opB === OpEnum.REMOVE) {
-      while (lenB > 0) {
+    if (opB.op === OpEnum.EQUAL || opB.op === OpEnum.REMOVE) {
+      while (opB.len > 0) {
         // Keep removes from csA first
-        if (csA.ops[opsAIdx].op === OpEnum.REMOVE) {
-          newCS.ops.push(csA.ops[opsAIdx]);
+        if (opA.op === OpEnum.REMOVE) {
+          newCS.ops.push(newOp(opA.op, opA.len));
           opsAIdx += 1;
+          opA = Object.assign({}, csA.ops[opsAIdx]);
         } else {
           // If more change in csB than csA
-          if (lenB >= csA.ops[opsAIdx].len) {
-            lenB -= csA.ops[opsAIdx].len;
-            if (opB === OpEnum.EQUAL) {
+          if (opB.len >= opA.len) {
+            opB.len -= opA.len;
+            if (opB.op === OpEnum.EQUAL) {
               // Keep csA operation if opB is equal
-              newCS.ops.push(csA.ops[opsAIdx]);
-            } else if (csA.ops[opsAIdx].op === OpEnum.EQUAL){
+              newCS.ops.push(newOp(opA.op, opA.len));
+            } else if (opA.op === OpEnum.EQUAL){
               // Keep csB remove operation if csA is equal
-              newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opsAIdx].len));
+              newCS.ops.push(newOp(OpEnum.REMOVE, opA.len));
             }
 
             // Move csA changeText index if add operation
-            if (csA.ops[opsAIdx].op === OpEnum.ADD) {
-              if (opB === OpEnum.EQUAL) {
-                newCS.changeText += csA.changeText.substr(changeTextAIdx, csA.ops[opsAIdx].len);
+            if (opA.op === OpEnum.ADD) {
+              if (opB.op === OpEnum.EQUAL) {
+                newCS.changeText += csA.changeText.substr(changeTextAIdx, opA.len);
               }
-              changeTextAIdx += csA.ops[opsAIdx].len;
+              changeTextAIdx += opA.len;
             }
 
             opsAIdx += 1;
+            opA = Object.assign({}, csA.ops[opsAIdx]);
           } else {
             // Less change in csB than csA
-            if (csA.ops[opsAIdx].op === OpEnum.EQUAL) {
+            if (opA.op === OpEnum.EQUAL) {
               // Keep csB operation if equal operation in csA
-              newCS.ops.push(csB.ops[opsBIdx]);
-            } else if (csA.ops[opsAIdx].op === OpEnum.ADD) {
+              newCS.ops.push(newOp(opB.op, opB.len));
+            } else if (opA.op === OpEnum.ADD) {
               // Keep csA add operation if equal operation in csB
-              if (opB === OpEnum.EQUAL) {
-                newCS.ops.push(newOp(OpEnum.ADD, lenB));
-                newCS.changeText += csA.changeText.substr(changeTextAIdx, lenB);
+              if (opB.op === OpEnum.EQUAL) {
+                newCS.ops.push(newOp(OpEnum.ADD, opB.len));
+                newCS.changeText += csA.changeText.substr(changeTextAIdx, opB.len);
               }
-              changeTextAIdx += lenB;
+              changeTextAIdx += opB.len;
             }
 
-            csA.ops[opsAIdx].len -= lenB;
-            lenB = 0;
+            opA.len -= opB.len;
+            opB.len = 0;
           }
         }
       }
-    } else if (opB === OpEnum.ADD) {
+    } else if (opB.op === OpEnum.ADD) {
       // If adding, push the add operation
-      newCS.ops.push(csB.ops[opsBIdx]);
-      newCS.changeText += csB.changeText.substr(changeTextBIdx, lenB);
-      changeTextBIdx += lenB;
+      newCS.ops.push(newOp(opB.op, opB.len));
+      newCS.changeText += csB.changeText.substr(changeTextBIdx, opB.len);
+      changeTextBIdx += opB.len;
     } else {
       console.err("Unknown operation: " + opB);
     }
   }
 
   while (opsAIdx < csA.ops.length) {
-    if (csA.ops[opsAIdx].op === OpEnum.REMOVE) {
-      newCS.ops.push(csA.ops[opsAIdx]);
+    if (opA.op === OpEnum.REMOVE) {
+      newCS.ops.push(newOp(opA.op, opA.len));
     }
 
     opsAIdx += 1;
+    opA = Object.assign({}, csA.ops[opsAIdx]);
   }
 
   newCS.compress();
@@ -222,7 +229,7 @@ function composeCS(csA, csB) {
   return newCS;
 }
 
-function follow(csA, csB) {
+function followCS(csA, csB) {
   if (csA.startLen != csB.startLen) {
     console.err("Changeset start lengths are different for merge.");
     return new ChangeSet(0);
@@ -249,7 +256,7 @@ function follow(csA, csB) {
     }
     // Insertions in setB stay as insertions
     if (csB.ops[opsBIdx].op === OpEnum.ADD) {
-      newCS.ops.push(csB.ops[opsBIdx]);
+      newCS.ops.push(newOp(csB.ops[opsBIdx].op, csB.ops[opsBIdx].len));
       changeTextBIdx += csB.ops[opsBIdx].len;
       opsBIdx += 1;
       opLenB += csB.ops[opsBIdx].len;

@@ -1,5 +1,6 @@
 var express = require('express');
 var router = express.Router();
+
 var inputStr = '<p>hello</p><p>hi\nthere</p>';
 
 /* GET home page. */

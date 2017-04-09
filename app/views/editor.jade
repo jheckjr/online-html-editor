@@ -6,19 +6,17 @@ block styles
 block scripts
   script(src="/javascripts/jquery.min.js")
   script(src="/plugin/codemirror/lib/codemirror.js")
-  script(src="/javascripts/default.js")
+  script(src="/socket.io/socket.io.js")
+  script(src="/javascripts/client-change-set.js")
 
 block content
   h1 HTML Editor
   p Please enter HTML code into the area below to create a page.
 
-  form#formEditHtml(name="edithtml",method="post",action="/editor")
-    textarea#textHtml(name="newhtml", class="codemirror-textarea", rows="6", cols="80")
-      | #{inputStr}
-    br
-    button#btnSubmit(type="submit") Submit
+  div(class="editor-div")
+  br
+  <input type="button" onclick="sendUpdate();" value="Send Update"/>
+  br
+  <input type="button" onclick="location.href='/viewhtml';" value="View Rendered HTML"/>
 
-  div
-    p #{inputStr}
-    br
-    <input type="button" onclick="location.href='/viewhtml';" value="View Rendered HTML"/>
+  script(src="/javascripts/default.js")
