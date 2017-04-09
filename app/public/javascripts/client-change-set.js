@@ -118,7 +118,7 @@ function getCSFromCM(changeObj, content) {
 
     // Not enough new lines in content
     if (offset === -1) {
-      console.err("Too few new lines in content");
+      console.error("Too few new lines in content");
       return offset;
     }
 
@@ -211,7 +211,7 @@ function composeCS(csA, csB) {
       newCS.changeText += csB.changeText.substr(changeTextBIdx, opB.len);
       changeTextBIdx += opB.len;
     } else {
-      console.err("Unknown operation: " + opB);
+      console.error("Unknown operation: " + opB);
     }
   }
 
@@ -229,14 +229,15 @@ function composeCS(csA, csB) {
   return newCS;
 }
 
+// TODO: remove forever loop
 function followCS(csA, csB) {
   if (csA.startLen != csB.startLen) {
-    console.err("Changeset start lengths are different for merge.");
+    console.error("Changeset start lengths are different for merge.");
     return new ChangeSet(0);
   }
 
   // Init new changeset
-  newCS = new ChangeSet(0);
+  let newCS = new ChangeSet(0);
   newCS.startLen = csA.startLen;
 
   let opsAIdx = 0;
@@ -280,8 +281,8 @@ function followCS(csA, csB) {
           opLenB += csB.ops[opsBIdx].len;
         }
       }
+      left = right + 1;
     }
-    left = right + 1;
   }
 
   newCS.changeText = csB.changeText;

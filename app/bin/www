@@ -106,7 +106,7 @@ io.on('connection', function(socket) {
 
     console.log('Client id: ' + msgObj.id);
     console.log(msgObj.data);
-    
+
     io.emit('serverAck');
   });
 
@@ -122,7 +122,26 @@ io.on('connection', function(socket) {
       changeText: 'hello world'
     };
     io.emit('headtext', JSON.stringify(headtext));
-  })
+  });
+
+  socket.on('requestUpdate', function() {
+    let latestCS = {
+      startLen: 11,
+      endLen: 25,
+      ops: [{
+        op: '=',
+        len: 11
+      }, {
+        op: '+',
+        len: 14
+      }],
+      changeText: '\nI\'m a server.'
+    };
+    let msg = {
+      data: latestCS
+    };
+    io.emit('serverUpdate', JSON.stringify(msg));
+  });
 
   //socket.broadcast.emit()
 });

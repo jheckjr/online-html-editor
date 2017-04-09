@@ -1,3 +1,5 @@
+'use strict';
+
 var socket = io();
 let ackReceived = false;
 // TODO: what if no ack received from server?
@@ -32,7 +34,20 @@ socket.on('serverAck', function() {
 
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
-  
+  let serverCS = JSON.parse(msg).data;
+  console.log('Update received');
+  console.log(serverCS);
+  clientCS.a = composeCS(clientCS.a, serverCS);
+  console.log('a' + JSON.stringify(clientCS.a));
+  let newX = followCS(serverCS, clientCS.x);
+  let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
+  clientCS.x = newX;
+  clientCS.y = newY;
+  console.log('x' + JSON.stringify(clientCS.x));
+  console.log('y' + JSON.stringify(clientCS.y));
+  let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  console.log('view' + JSON.stringify(newViewCS));
+  applyChangeToEditor(newViewCS);
 });
 
 var div = document.getElementsByClassName("editor-div")[0];
@@ -84,6 +99,39 @@ function sendUpdate() {
     clientCS.x = Object.assign({}, clientCS.y);
     clientCS.y = new ChangeSet(clientCS.x.endLen);
   } else {
-      console.err("Cannot send. Waiting for previous server ack.");
+      console.error("Cannot send. Waiting for previous server ack.");
   }
+}
+
+function requestUpdate() {
+  socket.emit('requestUpdate');
+}
+
+function applyChangeToEditor(viewCS) {
+  let editorContent = editor.getValue();
+  let contentIdx = 0;
+  let changeTextIdx = 0;
+
+  for (let opIdx = 0; opIdx < viewCS.ops.length; opIdx++) {
+    switch (viewCS.ops[opIdx].op) {
+      case OpEnum.EQUAL:
+        contentIdx += viewCS.ops[opIdx].len;
+        break;
+      case OpEnum.ADD:
+        editorContent = editorContent.substring(0, contentIdx) +
+          viewCS.changeText.substr(changeTextIdx, viewCS.ops[opIdx].len) +
+          editorContent.substring(contentIdx);
+        contentIdx += viewCS.ops[opIdx].len;
+        changeTextIdx += viewCS.ops[opIdx].len;
+        break;
+      case OpEnum.REMOVE:
+        editorContent = editorContent.substring(0, contentIdx) +
+          eidtorContent.substring(contentIdx + viewCS.ops[opIdx].len);
+        break;
+      default:
+        // Do nothing
+    }
+  }
+
+  editor.setValue(editorContent);
 }
