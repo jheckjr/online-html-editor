@@ -112,7 +112,7 @@ io.on('connection', function(socket) {
 
   socket.on('newClientId', function(id) {
     console.log('Id: ' + id);
-    let headtext = {
+    /*let headtext = {
       startLen: 0,
       endLen: 11,
       ops: [{
@@ -120,12 +120,21 @@ io.on('connection', function(socket) {
         len: 11
       }],
       changeText: 'hello world'
+    };*/
+    let headtext = {
+      startLen: 0,
+      endLen: 8,
+      ops: [{
+        op: '+',
+        len: 8
+      }],
+      changeText: 'baseball'
     };
     io.emit('headtext', JSON.stringify(headtext));
   });
 
   socket.on('requestUpdate', function() {
-    let latestCS = {
+    /*let latestCS = {
       startLen: 11,
       endLen: 25,
       ops: [{
@@ -136,6 +145,30 @@ io.on('connection', function(socket) {
         len: 14
       }],
       changeText: '\nI\'m a server.'
+    };*/
+    let latestCS = {
+      startLen:8,
+      endLen:5,
+      ops:[{
+        op:"=",
+        len:1
+      },{
+        op:"+",
+        len:1
+      },{
+        op:"-",
+        len:5
+      },{
+        op:"=",
+        len:1
+      },{
+        op:"+",
+        len:2
+      },{
+        op:"-",
+        len:1
+      }],
+      changeText:"eow"
     };
     let msg = {
       data: latestCS

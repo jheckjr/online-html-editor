@@ -7,6 +7,43 @@ let ackReceived = false;
 // Send client id to server on first connection
 socket.on('connect', function() {
   socket.emit('newClientId', socket.id);
+  let a = {
+    startLen: 8,
+    endLen: 5,
+    ops: [{
+      op: '=',
+      len: 2
+    }, {
+      op: '+',
+      len: 2
+    }, {
+      op: '-',
+      len: 5
+    }, {
+      op: '=',
+      len: 1
+    }],
+    changeText: 'si'
+  };
+  let b = {
+    startLen: 5,
+    endLen: 6,
+    ops: [{
+      op: '=',
+      len: 1
+    }, {
+      op: '+',
+      len: 1
+    }, {
+      op: '=',
+      len: 2
+    }, {
+      op: '+',
+      len: 2
+    }],
+    changeText: 'eow'
+  };
+  console.log(composeCS(a, b));
 });
 
 // Initialize changesets on connection
@@ -88,6 +125,7 @@ editor.on("change", function(instance, changeObj) {
 function sendUpdate() {
   if (ackReceived) {
     // Send latest client updates
+    console.log(JSON.stringify(clientCS.y));
     let msg = {
       id: socket.id,
       data: clientCS.y
