@@ -138,100 +138,9 @@ function applyCSFromCM(cmCS) {
 /*
  * Compose two changesets together
  */
-/*function composeCS(csA, csB) {
-  // Check that the lengths match
-  if (csA.endLen != csB.startLen) {
-    return new ChangeSet(0);
-  }
-
-  // Init new changeset
-  let newCS = new ChangeSet(0);
-  newCS.startLen = csA.startLen;
-  newCS.endLen = csB.endLen;
-
-  let changeTextAIdx = 0; // index of next text in csA changeText
-  let changeTextBIdx = 0; // index of next text in csB changeText
-  let opsAIdx = 0; // index of next operation in csA
-  let opA = Object.assign({}, csA.ops[opsAIdx]); // next operation in csA
-  // Apply each operation in csB to csA
-  for (let opsBIdx = 0; opsBIdx < csB.ops.length; opsBIdx++) {
-    let opB = csB.ops[opsBIdx];
-
-    if (opB.op === OpEnum.EQUAL || opB.op === OpEnum.REMOVE) {
-      while (opB.len > 0) {
-        // Keep removes from csA first
-        if (opA.op === OpEnum.REMOVE) {
-          newCS.ops.push(newOp(opA.op, opA.len));
-          opsAIdx += 1;
-          opA = Object.assign({}, csA.ops[opsAIdx]);
-        } else {
-          // If more change in csB than csA
-          if (opB.len >= opA.len) {
-            opB.len -= opA.len;
-            if (opB.op === OpEnum.EQUAL) {
-              // Keep csA operation if opB is equal
-              newCS.ops.push(newOp(opA.op, opA.len));
-            } else if (opA.op === OpEnum.EQUAL){
-              // Keep csB remove operation if csA is equal
-              newCS.ops.push(newOp(OpEnum.REMOVE, opA.len));
-            }
-
-            // Move csA changeText index if add operation
-            if (opA.op === OpEnum.ADD) {
-              if (opB.op === OpEnum.EQUAL) {
-                newCS.changeText += csA.changeText.substr(changeTextAIdx, opA.len);
-              }
-              changeTextAIdx += opA.len;
-            }
-
-            opsAIdx += 1;
-            opA = Object.assign({}, csA.ops[opsAIdx]);
-          } else {
-            // Less change in csB than csA
-            if (opA.op === OpEnum.EQUAL) {
-              // Keep csB operation if equal operation in csA
-              newCS.ops.push(newOp(opB.op, opB.len));
-            } else if (opA.op === OpEnum.ADD) {
-              // Keep csA add operation if equal operation in csB
-              if (opB.op === OpEnum.EQUAL) {
-                newCS.ops.push(newOp(OpEnum.ADD, opB.len));
-                newCS.changeText += csA.changeText.substr(changeTextAIdx, opB.len);
-              }
-              changeTextAIdx += opB.len;
-            }
-
-            opA.len -= opB.len;
-            opB.len = 0;
-          }
-        }
-      }
-    } else if (opB.op === OpEnum.ADD) {
-      // If adding, push the add operation
-      newCS.ops.push(newOp(opB.op, opB.len));
-      newCS.changeText += csB.changeText.substr(changeTextBIdx, opB.len);
-      changeTextBIdx += opB.len;
-    } else {
-      console.error("Unknown operation: " + opB);
-    }
-  }
-
-  while (opsAIdx < csA.ops.length) {
-    if (opA.op === OpEnum.REMOVE) {
-      newCS.ops.push(newOp(opA.op, opA.len));
-    }
-
-    opsAIdx += 1;
-    opA = Object.assign({}, csA.ops[opsAIdx]);
-  }
-
-  newCS.compress();
-
-  return newCS;
-} */
-
 function composeCS(changeSetA, changeSetB) {
   // Check that the lengths match
-  if (csA.endLen != csB.startLen) {
+  if (changeSetA.endLen != changeSetB.startLen) {
     return new ChangeSet(0);
   }
 
@@ -262,7 +171,7 @@ function composeCS(changeSetA, changeSetB) {
       // Push operations from csA for the length of the csB operation
       case OpEnum.EQUAL:
         // Continue to push csA operations until end of csB equals
-        while (opBLen > 0) {
+        while (opBLen > 0 && opAIdx < csA.ops.length) {
           switch (csA.ops[opAIdx].op) {
             case OpEnum.ADD:
               // Push csA operation up to opBLen if csA longer
@@ -277,8 +186,8 @@ function composeCS(changeSetA, changeSetB) {
                 newCS.ops.push(Object.assign({}, csA.ops[opAIdx]));
                 newCS.changeText += csA.changeText.substr(textAIdx, csA.ops[opAIdx].len);
                 textAIdx += csA.ops[opAIdx].len;
-                opAIdx += 1;
                 opBLen -= csA.ops[opAIdx].len;
+                opAIdx += 1;
               }
               break;
 
@@ -307,7 +216,7 @@ function composeCS(changeSetA, changeSetB) {
         break;
 
       case OpEnum.REMOVE:
-        while (opBLen > 0) {
+        while (opBLen > 0 && opAIdx < csA.ops.length) {
           switch (csA.ops[opAIdx].op) {
             case OpEnum.EQUAL:
               // Push remove operation with the shorter length
@@ -344,9 +253,10 @@ function composeCS(changeSetA, changeSetB) {
               console.error('Invalid operation in composeCS.');
           }
         }
+        break;
 
       default:
-        console.error('Invalid operation in composeCS.');
+        console.error('Invalid operation in composeCS.', csB.ops[opBIdx].op, opBIdx);
     }
   }
 
@@ -356,13 +266,13 @@ function composeCS(changeSetA, changeSetB) {
 
 function followCS(csA, csB) {
   if (csA.startLen != csB.startLen) {
-    console.error("Changeset start lengths are different for merge.");
+    console.error('Changeset start lengths are different for merge.');
     return new ChangeSet(0);
   }
 
   // Init new changeset
   let newCS = new ChangeSet(0);
-  newCS.startLen = csA.startLen;
+  newCS.startLen = csA.endLen;
   newCS.endLen = csA.endLen;
 
   let opsAIdx = 0;

@@ -65,8 +65,12 @@ socket.on('headtext', function(headtext) {
 socket.on('serverAck', function() {
   console.log('Ack received');
   ackReceived = true;
+  console.log(JSON.stringify(clientCS.a));
+  console.log(JSON.stringify(clientCS.x));
   clientCS.a = composeCS(clientCS.a, clientCS.x);
   clientCS.x = new ChangeSet(clientCS.a.endLen);
+  console.log(JSON.stringify(clientCS.a));
+  console.log(JSON.stringify(clientCS.x));
 });
 
 // Server update from other client
@@ -76,6 +80,8 @@ socket.on('serverUpdate', function(msg) {
   console.log(serverCS);
   clientCS.a = composeCS(clientCS.a, serverCS);
   console.log('a' + JSON.stringify(clientCS.a));
+  console.log('xinit' + JSON.stringify(clientCS.x));
+  console.log('yinit' + JSON.stringify(clientCS.y));
   let newX = followCS(serverCS, clientCS.x);
   let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
   clientCS.x = newX;
@@ -171,5 +177,7 @@ function applyChangeToEditor(viewCS) {
     }
   }
 
+  // Remove anything remaining from old view content
+  editorContent = editorContent.substring(0, contentIdx);
   editor.setValue(editorContent);
 }

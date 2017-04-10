@@ -164,9 +164,6 @@ io.on('connection', function(socket) {
       },{
         op:"+",
         len:2
-      },{
-        op:"-",
-        len:1
       }],
       changeText:"eow"
     };
