@@ -76,19 +76,24 @@ socket.on('serverAck', function() {
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
   let serverCS = JSON.parse(msg).data;
+  let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
   console.log('Update received');
-  console.log(serverCS);
+  console.log(JSON.stringify(serverCS));
   clientCS.a = composeCS(clientCS.a, serverCS);
   console.log('a' + JSON.stringify(clientCS.a));
   console.log('xinit' + JSON.stringify(clientCS.x));
   console.log('yinit' + JSON.stringify(clientCS.y));
+  console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));
   let newX = followCS(serverCS, clientCS.x);
   let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
+  let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
+  console.log('d' + JSON.stringify(D));
   clientCS.x = newX;
   clientCS.y = newY;
   console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
-  let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  //let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  let newViewCS = composeCS(viewCS, D);
   console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
 });
@@ -140,7 +145,7 @@ function sendUpdate() {
     socket.emit('clientUpdate', JSON.stringify(msg));
 
     // Modify changesets (x<-y, y<-identity)
-    clientCS.x = Object.assign({}, clientCS.y);
+    clientCS.x = JSON.parse(JSON.stringify(clientCS.y));
     clientCS.y = new ChangeSet(clientCS.x.endLen);
   } else {
       console.error("Cannot send. Waiting for previous server ack.");
