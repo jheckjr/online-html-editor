@@ -311,7 +311,7 @@ function followCS(changeSetA, changeSetB) {
 
         opALen += csA.ops[opAIdx].len;
         opBLen += csA.ops[opAIdx].len;
-        lastEqLen += csA.ops[opAIdx].len;
+        lastEqLen = opALen;
 
         // Move csB operation index if same length, otherwise change csB length
         if (csA.ops[opAIdx].len == csB.ops[opBIdx].len) {
@@ -325,7 +325,7 @@ function followCS(changeSetA, changeSetB) {
 
         opALen += csB.ops[opBIdx].len;
         opBLen += csB.ops[opBIdx].len;
-        lastEqLen += csB.ops[opBIdx].len;
+        lastEqLen = opALen;
 
         // Move csA operation index if same length, otherwise change csA length
         if (csA.ops[opAIdx].len == csB.ops[opBIdx].len) {
@@ -345,22 +345,20 @@ function followCS(changeSetA, changeSetB) {
               opALen += csA.ops[opAIdx].len;
               opAIdx += 1;
             } else {
-              csA.ops[opAIdx].len -= opBLen - opALen - 1;
+              csA.ops[opAIdx].len -= opBLen - opALen;
               opALen = opBLen;
             }
             break;
           // Push whole add operation as equal
           case OpEnum.ADD:
-            // Add remove operation if needed
-            if (lastEqLen < opALen) {
-              newCS.ops.push(newOp(OpEnum.REMOVE, opALen - lastEqLen));
-            }
             newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[opAIdx].len));
-            lastEqLen = opALen + csA.ops[opAIdx].len;
             opAIdx += 1;
             break;
-          // Skip whole remove operation
+          // Skip whole remove operation unless last operation
           case OpEnum.REMOVE:
+            if (opAIdx === (csA.ops.length - 1)) {
+              newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+            }
             opALen += csA.ops[opAIdx].len;
             opAIdx += 1;
             break;
@@ -375,7 +373,7 @@ function followCS(changeSetA, changeSetB) {
               opBLen += csB.ops[opBIdx].len;
               opBIdx += 1;
             } else {
-              csB.ops[opBIdx].len -= opALen - opBLen - 1;
+              csB.ops[opBIdx].len -= opALen - opBLen;
               opBLen = opALen;
             }
             break;
@@ -384,8 +382,11 @@ function followCS(changeSetA, changeSetB) {
             newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
             opBIdx += 1;
             break;
-          // Skip whole remove operation
+          // Skip whole remove operation unless last operation
           case OpEnum.REMOVE:
+            if (opBIdx === (csB.ops.length - 1)) {
+              newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+            }
             opBLen += csB.ops[opBIdx].len;
             opBIdx += 1;
             break;
@@ -395,24 +396,25 @@ function followCS(changeSetA, changeSetB) {
       } else {
         // Both changesets at same point and at least one is an add or remove op
         if (csA.ops[opAIdx].op === OpEnum.ADD) {
-          // Add remove operation if needed
-          if (lastEqLen < opALen) {
-            newCS.ops.push(newOp(OpEnum.REMOVE, opALen - lastEqLen));
-          }
           // Push whole add operation as equal
           newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[opAIdx].len));
-          lastEqLen = opALen + csA.ops[opAIdx].len;
           opAIdx += 1;
         } else if (csB.ops[opBIdx].op === OpEnum.ADD) {
           // Push whole add operation
           newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
           opBIdx += 1;
         } else if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
-          // Skip the remove operation
+          // Skip the remove operation unless last operation
+          if (opAIdx === (csA.ops.length - 1)) {
+            newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+          }
           opALen += csA.ops[opAIdx].len;
           opAIdx += 1;
         } else if (csB.ops[opBIdx].op === OpEnum.REMOVE) {
-          // Skip the remove operation
+          // Skip the remove operation unless last operation
+          if (opBIdx === (csB.ops.length - 1)) {
+            newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+          }
           opBLen += csB.ops[opBIdx].len;
           opBIdx += 1;
         }
@@ -420,17 +422,21 @@ function followCS(changeSetA, changeSetB) {
     }
   }
 
-  // Process remaining add operations
+  // Process remaining add operations and keep remove operation if last operation
   if (opAIdx < csA.ops.length) {
     for (let idx = opAIdx; idx < csA.ops.length; idx++) {
       if (csA.ops[idx].op === OpEnum.ADD) {
         newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[idx].len));
+      } else if (csA.ops[idx].op === OpEnum.REMOVE && (idx === csA.ops.length - 1)) {
+        newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[idx])));
       }
     }
   } else if (opBIdx < csB.ops.length) {
     for (let idx = opBIdx; idx < csB.ops.length; idx++) {
       if (csB.ops[idx].op === OpEnum.ADD) {
         newCS.ops.push(newOp(OpEnum.ADD, csB.ops[idx].len));
+      } else if (csB.ops[idx].op === OpEnum.REMOVE && (idx === csB.ops.length - 1)) {
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[idx])));
       }
     }
   }

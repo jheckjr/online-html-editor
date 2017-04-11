@@ -77,6 +77,7 @@ socket.on('serverAck', function() {
 socket.on('serverUpdate', function(msg) {
   let serverCS = JSON.parse(msg).data;
   let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  console.log('viewCS ' + JSON.stringify(viewCS));
   console.log('Update received');
   console.log(JSON.stringify(serverCS));
   clientCS.a = composeCS(clientCS.a, serverCS);
