@@ -93,8 +93,9 @@ socket.on('serverUpdate', function(msg) {
   clientCS.y = newY;
   console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
-  //let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-  let newViewCS = composeCS(viewCS, D);
+  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
+  let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  //let newViewCS = composeCS(viewCS, D);
   console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
 });

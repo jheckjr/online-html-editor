@@ -206,7 +206,7 @@ function composeCS(changeSetA, changeSetB) {
             // Push all of remove operation in csA since not known to csB
             case OpEnum.REMOVE:
               newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
-              opsAIdx += 1;
+              opAIdx += 1;
               break;
 
             default:
@@ -239,15 +239,22 @@ function composeCS(changeSetA, changeSetB) {
                 textAIdx += opBLen;
                 opBLen = 0;
               } else {
-                opBLen -= csA.ops[opAIdx].len;
-                textAIdx += csA.ops[opAIdx].len;
-                opAIdx += 1;
+                // If last operation in csA, skip the rest of the csB remove
+                // because it would remove nonexistent characters
+                if (opAIdx < csA.ops.length - 1) {
+                  opBLen -= csA.ops[opAIdx].len;
+                  textAIdx += csA.ops[opAIdx].len;
+                  opAIdx += 1;
+                } else {
+                  opBLen = 0;
+                }
               }
               break;
 
+            // Push remove from csA
             case OpEnum.REMOVE:
-              // Do nothing, should never get here
-              console.error('Remove/Remove in composeCS.', csA, opAIdx, csB, opBIdx, opBLen);
+              newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+              opBLen -= csA.ops[opAIdx].len;
               opAIdx += 1;
               break;
 
@@ -264,7 +271,7 @@ function composeCS(changeSetA, changeSetB) {
 
   // Add any remaining remove operations
   while (opAIdx < csA.ops.length) {
-    if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
+    if (csA.ops[opAIdx].op === OpEnum.REMOVE && csA.ops[opAIdx].len > 0) {
       newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
     }
 
