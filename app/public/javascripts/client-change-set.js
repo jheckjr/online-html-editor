@@ -194,7 +194,7 @@ function composeCS(changeSetA, changeSetB) {
             case OpEnum.EQUAL:
               // Push the shorter equals operation
               if (opBLen < csA.ops[opAIdx].len) {
-                newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+                newCS.ops.push(newOp(OpEnum.EQUAL, opBLen));
                 opBLen = 0;
               } else {
                 newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
@@ -221,7 +221,7 @@ function composeCS(changeSetA, changeSetB) {
             case OpEnum.EQUAL:
               // Push remove operation with the shorter length
               if (opBLen < csA.ops[opAIdx].len) {
-                newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+                newCS.ops.push(newOp(OpEnum.REMOVE, opBLen));
                 csA.ops[opAIdx].len -= opBLen;
                 opBLen = 0;
               } else {
@@ -364,10 +364,19 @@ function followCS(changeSetA, changeSetB) {
           // Skip whole remove operation unless last operation
           case OpEnum.REMOVE:
             if (opAIdx === (csA.ops.length - 1)) {
-              newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+              if (csA.ops[opAIdx].len <= csB.ops[opBIdx].len) {
+                newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+                opALen += csA.ops[opAIdx].len;
+                opAIdx += 1;
+              } else {
+                newCS.ops.push(newOp(OpEnum.REMOVE, opBLen - opALen));
+                csA.ops[opAIdx].len -= (opBLen - opALen);
+                opALen += opBLen;
+              }
+            } else {
+              opALen += csA.ops[opAIdx].len;
+              opAIdx += 1;
             }
-            opALen += csA.ops[opAIdx].len;
-            opAIdx += 1;
             break;
           default:
             console.error('Invalid operation in followCS.');
@@ -392,10 +401,19 @@ function followCS(changeSetA, changeSetB) {
           // Skip whole remove operation unless last operation
           case OpEnum.REMOVE:
             if (opBIdx === (csB.ops.length - 1)) {
-              newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+              if (csB.ops[opBIdx].len <= csA.ops[opAIdx].len) {
+                newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+                opBLen += csB.ops[opBIdx].len;
+                opBIdx += 1;
+              } else {
+                newCS.ops.push(newOp(OpEnum.REMOVE, opALen - opBLen));
+                csB.ops[opBIdx].len -= (opALen - opBLen);
+                opBLen = opALen;
+              }
+            } else {
+              opBLen += csB.ops[opBIdx].len;
+              opBIdx += 1;
             }
-            opBLen += csB.ops[opBIdx].len;
-            opBIdx += 1;
             break;
           default:
             console.error('Invalid operation in followCS.');
@@ -413,17 +431,39 @@ function followCS(changeSetA, changeSetB) {
         } else if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
           // Skip the remove operation unless last operation
           if (opAIdx === (csA.ops.length - 1)) {
-            newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+            if (csA.ops[opAIdx].len <= csB.ops[opBIdx].len) {
+              newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+              opALen += csA.ops[opAIdx].len;
+              opAIdx += 1;
+            } else {
+              newCS.ops.push(newOp(OpEnum.REMOVE, csB.ops[opBIdx].len));
+              csA.ops[opAIdx].len -= csB.ops[opBIdx].len;
+              opALen += csB.ops[opBIdx].len;
+              opBLen += csB.ops[opBIdx].len;
+              opBIdx += 1;
+            }
+          } else {
+            opALen += csA.ops[opAIdx].len;
+            opAIdx += 1;
           }
-          opALen += csA.ops[opAIdx].len;
-          opAIdx += 1;
         } else if (csB.ops[opBIdx].op === OpEnum.REMOVE) {
           // Skip the remove operation unless last operation
           if (opBIdx === (csB.ops.length - 1)) {
-            newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+            if (csB.ops[opBIdx].len <= csA.ops[opAIdx].len) {
+              newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+              opBLen += csB.ops[opBIdx].len;
+              opBIdx += 1;
+            } else {
+              newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));
+              csB.ops[opBIdx].len -= csA.ops[opAIdx].len;
+              opBLen += csA.ops[opAIdx].len;
+              opALen += csA.ops[opAIdx].len;
+              opAIdx += 1;
+            }
+          } else {
+            opBLen += csB.ops[opBIdx].len;
+            opBIdx += 1;
           }
-          opBLen += csB.ops[opBIdx].len;
-          opBIdx += 1;
         }
       }
     }
