@@ -37,6 +37,27 @@ function ChangeSet(startLen) {
       this.endLen = newEndLen;
     }
   };
+
+  this.expand = function() {
+    let newOps = [];
+    let newEndLen = 0;
+    for (let idx = 0; idx < this.ops.length; idx++) {
+      // Keep adds as they are
+      if (this.ops[idx].op === OpEnum.ADD) {
+        newOps.push(JSON.parse(JSON.stringify(this.ops[idx])));
+        newEndLen += 1;
+      } else {
+        // Expand removes and equals to be multiple ops of length one
+        for (let newIdx = 0; newIdx < this.ops[idx].len; newIdx++) {
+          newOps.push(newOp(this.ops[idx].op, 1));
+          newEndLen += 1;
+        }
+      }
+    }
+
+    this.ops = newOps;
+    this.endLen = newEndLen;
+  };
 }
 
 let clientCS = {
@@ -56,6 +77,17 @@ function newOp(op, opLength) {
     op: op,
     len: opLength
   };
+}
+
+// Convert data from server to changeset
+function convertToChangeSet(data) {
+  let newCS = new ChangeSet(0);
+  newCS.startLen = data.startLen;
+  newCS.endLen = data.endLen;
+  newCS.ops = data.ops;
+  newCS.changeText = data.changeText;
+
+  return newCS;
 }
 
 /*
@@ -145,8 +177,8 @@ function composeCS(changeSetA, changeSetB) {
   }
 
   // Make copies of input changesets
-  let csA = JSON.parse(JSON.stringify(changeSetA));
-  let csB = JSON.parse(JSON.stringify(changeSetB));
+  let csA = convertToChangeSet(JSON.parse(JSON.stringify(changeSetA)));
+  let csB = convertToChangeSet(JSON.parse(JSON.stringify(changeSetB)));
 
   // Init new changeset
   let newCS = new ChangeSet(0);
@@ -195,12 +227,13 @@ function composeCS(changeSetA, changeSetB) {
               // Push the shorter equals operation
               if (opBLen < csA.ops[opAIdx].len) {
                 newCS.ops.push(newOp(OpEnum.EQUAL, opBLen));
+                csA.ops[opAIdx].len -= opBLen;
                 opBLen = 0;
               } else {
                 newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
                 opBLen -= csA.ops[opAIdx].len;
+                opAIdx += 1;
               }
-              opAIdx += 1;
               break;
 
             // Push all of remove operation in csA since not known to csB
@@ -282,7 +315,7 @@ function composeCS(changeSetA, changeSetB) {
   return newCS;
 }
 
-function followCS(changeSetA, changeSetB) {
+/*function followCS(changeSetA, changeSetB) {
   if (changeSetA.startLen != changeSetB.startLen) {
     console.error('Changeset start lengths are different for merge.');
     return new ChangeSet(0);
@@ -466,6 +499,76 @@ function followCS(changeSetA, changeSetB) {
           }
         }
       }
+    }
+  }
+
+  // Process remaining add operations and keep remove operation if last operation
+  if (opAIdx < csA.ops.length) {
+    for (let idx = opAIdx; idx < csA.ops.length; idx++) {
+      if (csA.ops[idx].op === OpEnum.ADD) {
+        newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[idx].len));
+      } else if (csA.ops[idx].op === OpEnum.REMOVE && (idx === csA.ops.length - 1)) {
+        newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[idx])));
+      }
+    }
+  } else if (opBIdx < csB.ops.length) {
+    for (let idx = opBIdx; idx < csB.ops.length; idx++) {
+      if (csB.ops[idx].op === OpEnum.ADD) {
+        newCS.ops.push(newOp(OpEnum.ADD, csB.ops[idx].len));
+      } else if (csB.ops[idx].op === OpEnum.REMOVE && (idx === csB.ops.length - 1)) {
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[idx])));
+      }
+    }
+  }
+
+  newCS.changeText = csB.changeText;
+  newCS.compress();
+
+  return newCS;
+}*/
+
+function followCS(changeSetA, changeSetB) {
+  if (changeSetA.startLen != changeSetB.startLen) {
+    console.error('Changeset start lengths are different for merge.');
+    return new ChangeSet(0);
+  }
+
+  // Make copies of input changesets
+  let csA = convertToChangeSet(JSON.parse(JSON.stringify(changeSetA)));
+  let csB = convertToChangeSet(JSON.parse(JSON.stringify(changeSetB)));
+
+  // Init new changeset
+  let newCS = new ChangeSet(0);
+  newCS.startLen = csA.endLen;
+  newCS.endLen = csA.endLen;
+
+  csA.expand();
+  csB.expand();
+
+  let opAIdx = 0;
+  let opBIdx = 0;
+
+  while (opAIdx < csA.ops.length && opBIdx < csB.ops.length) {
+    // Push all adds
+    if (csA.ops[opAIdx].op === OpEnum.ADD) {
+      // Push whole add operation as equal
+      newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[opAIdx].len));
+      opAIdx += 1;
+    } else if (csB.ops[opBIdx].op === OpEnum.ADD) {
+      // Push whole add operation
+      newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+      opBIdx += 1;
+    } else if (csA.ops[opAIdx].op === OpEnum.EQUAL &&
+      csB.ops[opBIdx].op === OpEnum.EQUAL ) {
+      // Push equal if both equal
+      newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[opAIdx].len));
+      opAIdx += 1;
+      opBIdx += 1;
+    } else {
+      // If one or both is remove, push remove
+      newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));
+      opAIdx += 1;
+      opBIdx += 1;
     }
   }
 

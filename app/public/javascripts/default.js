@@ -75,7 +75,7 @@ socket.on('serverAck', function() {
 
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
-  let serverCS = JSON.parse(msg).data;
+  let serverCS = convertToChangeSet(JSON.parse(msg).data);
   let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
   console.log('viewCS ' + JSON.stringify(viewCS));
   console.log('Update received');
@@ -94,8 +94,8 @@ socket.on('serverUpdate', function(msg) {
   console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
   console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
-  let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-  //let newViewCS = composeCS(viewCS, D);
+  //let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  let newViewCS = composeCS(viewCS, D);
   console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
 });
@@ -114,7 +114,7 @@ editor.on("change", function(instance, changeObj) {
     return;
   }
 
-  var debug = false;
+  var debug = true;
   // Convert change object to changeset and add to unsubmitted changeset
   let cmCS = getCSFromCM(changeObj, instance.getValue());
 
@@ -122,7 +122,7 @@ editor.on("change", function(instance, changeObj) {
     console.log('cmCS');
     console.log(cmCS);
     console.log('y_init');
-    console.log(clientCS.y);
+    console.log(JSON.stringify(clientCS.y));
   }
 
   applyCSFromCM(cmCS);
@@ -131,7 +131,9 @@ editor.on("change", function(instance, changeObj) {
     console.log(changeObj);
     console.log(JSON.stringify(instance.getValue()));
     console.log('y');
-    console.log(clientCS.y);
+    console.log(JSON.stringify(clientCS.y));
+    //clientCS.y.expand();
+    //console.log(JSON.stringify(clientCS.y));
   }
 });
 
