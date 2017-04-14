@@ -76,6 +76,10 @@ socket.on('serverAck', function() {
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
   let serverCS = convertToChangeSet(JSON.parse(msg).data);
+  console.log('a' + JSON.stringify(clientCS.a));
+  console.log('xinit' + JSON.stringify(clientCS.x));
+  console.log('yinit' + JSON.stringify(clientCS.y));
+  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
   let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
   console.log('viewCS ' + JSON.stringify(viewCS));
   console.log('Update received');
@@ -132,8 +136,6 @@ editor.on("change", function(instance, changeObj) {
     console.log(JSON.stringify(instance.getValue()));
     console.log('y');
     console.log(JSON.stringify(clientCS.y));
-    //clientCS.y.expand();
-    //console.log(JSON.stringify(clientCS.y));
   }
 });
 
@@ -179,7 +181,7 @@ function applyChangeToEditor(viewCS) {
         break;
       case OpEnum.REMOVE:
         editorContent = editorContent.substring(0, contentIdx) +
-          eidtorContent.substring(contentIdx + viewCS.ops[opIdx].len);
+          editorContent.substring(contentIdx + viewCS.ops[opIdx].len);
         break;
       default:
         // Do nothing

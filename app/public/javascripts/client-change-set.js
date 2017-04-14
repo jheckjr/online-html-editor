@@ -38,14 +38,23 @@ function ChangeSet(startLen) {
     }
   };
 
-  this.expand = function() {
+  // expandAdds is boolean for expanding add operations
+  this.expand = function(expandAdds) {
     let newOps = [];
     let newEndLen = 0;
     for (let idx = 0; idx < this.ops.length; idx++) {
       // Keep adds as they are
       if (this.ops[idx].op === OpEnum.ADD) {
-        newOps.push(JSON.parse(JSON.stringify(this.ops[idx])));
-        newEndLen += 1;
+        if (expandAdds){
+          // Expand to be multiple ops of length one
+          for (let newIdx = 0; newIdx < this.ops[idx].len; newIdx++) {
+            newOps.push(newOp(this.ops[idx].op, 1));
+            newEndLen += 1;
+          }
+        } else {
+          newOps.push(JSON.parse(JSON.stringify(this.ops[idx])));
+          newEndLen += 1;
+        }
       } else {
         // Expand removes and equals to be multiple ops of length one
         for (let newIdx = 0; newIdx < this.ops[idx].len; newIdx++) {
@@ -170,7 +179,7 @@ function applyCSFromCM(cmCS) {
 /*
  * Compose two changesets together
  */
-function composeCS(changeSetA, changeSetB) {
+/*function composeCS(changeSetA, changeSetB) {
   // Check that the lengths match
   if (changeSetA.endLen != changeSetB.startLen) {
     return new ChangeSet(0);
@@ -268,6 +277,7 @@ function composeCS(changeSetA, changeSetB) {
               // Remove in csB cancels add in csA, so don't push change. Just update
               // pointers
               if (opBLen < csA.ops[opAIdx].len) {
+                newCS.ops.push(newOp(OpEnum.REMOVE, opBLen));
                 csA.ops[opAIdx].len -= opBLen;
                 textAIdx += opBLen;
                 opBLen = 0;
@@ -275,6 +285,7 @@ function composeCS(changeSetA, changeSetB) {
                 // If last operation in csA, skip the rest of the csB remove
                 // because it would remove nonexistent characters
                 if (opAIdx < csA.ops.length - 1) {
+                  newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));
                   opBLen -= csA.ops[opAIdx].len;
                   textAIdx += csA.ops[opAIdx].len;
                   opAIdx += 1;
@@ -286,8 +297,7 @@ function composeCS(changeSetA, changeSetB) {
 
             // Push remove from csA
             case OpEnum.REMOVE:
-              newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
-              opBLen -= csA.ops[opAIdx].len;
+              newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));
               opAIdx += 1;
               break;
 
@@ -311,6 +321,78 @@ function composeCS(changeSetA, changeSetB) {
     opAIdx += 1;
   }
 
+  //console.log(JSON.stringify(newCS));
+  newCS.compress();
+  return newCS;
+}*/
+
+function composeCS(changeSetA, changeSetB) {
+  // Check that the lengths match
+  if (changeSetA.endLen != changeSetB.startLen) {
+    return new ChangeSet(0);
+  }
+
+  // Make copies of input changesets
+  let csA = convertToChangeSet(JSON.parse(JSON.stringify(changeSetA)));
+  let csB = convertToChangeSet(JSON.parse(JSON.stringify(changeSetB)));
+
+  // Init new changeset
+  let newCS = new ChangeSet(0);
+  newCS.startLen = csA.startLen;
+  newCS.endLen = csB.endLen;
+
+  csA.expand(true);
+  csB.expand(true);
+
+  let textAIdx = 0; // index of change text in csA
+  let textBIdx = 0; // index of change text in csB
+  let opAIdx = 0; // index of current operation in csA
+  let numOpsA = csA.ops.length; // number of operations in csA
+
+  for (let opBIdx = 0; opBIdx < csB.ops.length; opBIdx++) {
+    switch (csB.ops[opBIdx].op) {
+      case OpEnum.EQUAL:
+        newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+
+        if (csA.ops[opAIdx].op === OpEnum.ADD) {
+          newCS.changeText += csA.changeText.substr(textAIdx, 1);
+          textAIdx += 1;
+        }
+        opAIdx += 1;
+        break;
+
+      case OpEnum.ADD:
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+        newCS.changeText += csB.changeText.substr(textBIdx, 1);
+        textBIdx += 1;
+        break;
+
+      case OpEnum.REMOVE:
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+        // if opA also remove and csA has more operations, add another remove op
+        if (csA.ops[opAIdx].op === OpEnum.REMOVE && numOpsA > csB.ops.length) {
+          newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+          numOpsA -= 1;
+        }
+        opAIdx += 1;
+        break;
+
+      default:
+        console.error('Invalid operation in composeCS.', csB.ops[opBIdx].op, opBIdx);
+        break;
+    }
+  }
+
+  // Add any remaining remove operations
+  while (opAIdx < csA.ops.length) {
+    if (csA.ops[opAIdx].op === OpEnum.REMOVE && csA.ops[opAIdx].len > 0) {
+      newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+    }
+
+    opAIdx += 1;
+  }
+
+  //console.log(JSON.stringify(newCS));
   newCS.compress();
   return newCS;
 }
@@ -542,8 +624,8 @@ function followCS(changeSetA, changeSetB) {
   newCS.startLen = csA.endLen;
   newCS.endLen = csA.endLen;
 
-  csA.expand();
-  csB.expand();
+  csA.expand(false);
+  csB.expand(false);
 
   let opAIdx = 0;
   let opBIdx = 0;
