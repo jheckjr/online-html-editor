@@ -104,47 +104,102 @@ function convertToChangeSet(data) {
  * added or removed character(s).
  */
 function getCSFromCM(changeObj, content) {
-  let cmCS = new ChangeSet(0);
   let offset = getOffset(content, changeObj);
   if (offset === -1) {
     // Error in getting offset so return identity
-    return cmCS;
+    return new ChangeSet(content.length);
   }
 
-  let numRemaining = content.length - offset;
-  cmCS.ops.push(newOp(OpEnum.EQUAL, offset));
-  cmCS.startLen = content.length;
-  cmCS.endLen = content.length;
+  let newCS = convertToChangeSet(JSON.parse(JSON.stringify(clientCS.y)));
+  newCS.expand(true);
 
-  // Add new line operation
-  if (changeObj.text.length == 2) {
-    cmCS.ops.push(newOp(OpEnum.ADD, 1));
-    cmCS.changeText += '\n';
-    cmCS.startLen -= 1;
-    numRemaining -= 1;
+  // offset says how many characters to skip before insertion (only equal and add)
+  let numAddSoFar = 0; // number of add operations seen so far
+  let numRemoveSoFar = 0; // number of remove operations seen so far
+  let numSoFar = 0; // number of add or equal operations seen so far
+  let numChanged = 0; // number of changed operations
+
+  for (let idx = 0; idx < newCS.ops.length; idx++) {
+    // offset found in operations list
+    if (offset === numSoFar) {
+      break;
+    }
+
+    // count number of equal and add operations for offset
+    if (newCS.ops[idx].op !== OpEnum.REMOVE) {
+      numSoFar += 1;
+    } else {
+      numRemoveSoFar += 1;
+    }
+
+    // Increase index in the changeText if add operation
+    if (newCS.ops[idx].op === OpEnum.ADD) {
+      numAddSoFar += 1;
+    }
   }
 
-  // Remove characters
-  let numToChange = changeObj.removed[0].length;
-  if (numToChange > 0) {
-    cmCS.ops.push(newOp(OpEnum.REMOVE, numToChange));
-    cmCS.startLen += numToChange;
+  // Add the removes back into the count to get the correct index in the changeSet
+  numSoFar += numRemoveSoFar;
+  // Skip past any removes if currently on a remove operation
+  while (numSoFar < newCS.ops.length && newCS.ops[numSoFar].op === OpEnum.REMOVE) {
+    numSoFar += 1;
   }
 
-  // Add new characters
-  numToChange = changeObj.text[0].length;
-  if (numToChange > 0) {
-    cmCS.ops.push(newOp(OpEnum.ADD, numToChange));
-    cmCS.changeText += changeObj.text[0];
-    cmCS.startLen -= numToChange;
-    numRemaining -= numToChange;
-  }
-  // Add remaining characters
-  if (numRemaining > 0) {
-    cmCS.ops.push(newOp(OpEnum.EQUAL, numRemaining));
+  // insert adds if new characters or new lines
+  if (changeObj.text[0].length > 0 || changeObj.text.length > 1) {
+    for (let line = 0; line < changeObj.text.length; line++) {
+      // insert new line character if more than one line
+      if (line > 0) {
+        newCS.ops.splice(numSoFar + numChanged, 0, newOp(OpEnum.ADD, 1));
+        newCS.changeText = newCS.changeText.substr(0, numAddSoFar + numChanged) +
+          '\n' + newCS.changeText.substr(numAddSoFar + numChanged);
+        numChanged += 1;
+      }
+
+      // insert text characters
+      for (let char = 0; char < changeObj.text[line].length; char++) {
+        newCS.ops.splice(numSoFar + numChanged, 0, newOp(OpEnum.ADD, 1));
+        newCS.changeText = newCS.changeText.substr(0, numAddSoFar + numChanged) +
+          changeObj.text[line][char] + newCS.changeText.substr(numAddSoFar + numChanged);
+        numChanged += 1;
+      }
+    }
   }
 
-  return cmCS;
+  // replace operations with removes if deleted characters
+  if (changeObj.removed[0].length > 0 || changeObj.removed.length > 1) {
+    for (let line = 0; line < changeObj.removed.length; line++) {
+      let removed;
+      // remove new line character if more than one line
+      if (line > 0) {
+        removed = newCS.ops.splice(numSoFar + numChanged, 1)[0];
+        if (removed.op === OpEnum.ADD) {
+          newCS.changeText = newCS.changeText.substr(0, numAddSoFar + numChanged) +
+            newCS.changeText.substr(numAddSoFar + numChanged + 1);
+        } else if (removed.op === OpEnum.EQUAL) {
+          // insert a remove if removed operation was equal
+          newCS.ops.splice(numSoFar + numChanged, 0, newOp(OpEnum.REMOVE, 1));
+          numChanged += 1;
+        }
+      }
+
+      // remove text characters
+      for (let char = 0; char < changeObj.removed[line].length; char++) {
+        removed = newCS.ops.splice(numSoFar + numChanged, 1)[0];
+        if (removed.op === OpEnum.ADD) {
+          newCS.changeText = newCS.changeText.substr(0, numAddSoFar + numChanged) +
+            newCS.changeText.substr(numAddSoFar + numChanged + 1);
+        } else if (removed.op === OpEnum.EQUAL) {
+          // insert a remove if removed operation was equal
+          newCS.ops.splice(numSoFar + numChanged, 0, newOp(OpEnum.REMOVE, 1));
+          numChanged += 1;
+        }
+      }
+    }
+  }
+
+  newCS.compress();
+  clientCS.y = newCS;
 
   // Find the index in the content string of a change
   function getOffset(content, changeObj) {
@@ -167,13 +222,6 @@ function getCSFromCM(changeObj, content) {
 
     return offset;
   }
-}
-
-/*
- * Apply a change from the editor to the unsubmitted changeset
- */
-function applyCSFromCM(cmCS) {
-  clientCS.y = composeCS(clientCS.y, cmCS);
 }
 
 /*
@@ -370,9 +418,12 @@ function composeCS(changeSetA, changeSetB) {
       case OpEnum.REMOVE:
         newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
         // if opA also remove and csA has more operations, add another remove op
-        if (csA.ops[opAIdx].op === OpEnum.REMOVE && numOpsA > csB.ops.length) {
+        /*if (csA.ops[opAIdx].op === OpEnum.REMOVE && numOpsA > csB.ops.length) {
           newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
           numOpsA -= 1;
+        }*/
+        if (csA.ops[opAIdx].op === OpEnum.ADD) {
+          textAIdx += 1;
         }
         opAIdx += 1;
         break;
