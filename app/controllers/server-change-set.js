@@ -95,7 +95,7 @@ var convertToChangeSet = function(data) {
 
 var followCS = function(changeSetA, changeSetB) {
   if (changeSetA.startLen != changeSetB.startLen) {
-    console.error('Changeset start lengths are different for merge.');
+    console.error('Changeset start lengths are different for merge.', changeSetA, changeSetB);
     return new ChangeSet(changeSetA.endLen);
   }
 
@@ -163,8 +163,90 @@ var followCS = function(changeSetA, changeSetB) {
   return newCS;
 };
 
+/*
+ * Compose two changesets together
+ */
+var composeCS = function(changeSetA, changeSetB) {
+  // Check that the lengths match
+  if (changeSetA.endLen != changeSetB.startLen) {
+    return new ChangeSet(0);
+  }
+
+  // Make copies of input changesets
+  let csA = convertToChangeSet(JSON.parse(JSON.stringify(changeSetA)));
+  let csB = convertToChangeSet(JSON.parse(JSON.stringify(changeSetB)));
+
+  // Init new changeset
+  let newCS = new ChangeSet(0);
+  newCS.startLen = csA.startLen;
+  newCS.endLen = csB.endLen;
+
+  csA.expand(true);
+  csB.expand(true);
+
+  let textAIdx = 0; // index of change text in csA
+  let textBIdx = 0; // index of change text in csB
+  let opAIdx = 0; // index of current operation in csA
+  let numOpsA = csA.ops.length; // number of operations in csA
+
+  for (let opBIdx = 0; opBIdx < csB.ops.length; opBIdx++) {
+    switch (csB.ops[opBIdx].op) {
+      case OpEnum.EQUAL:
+        // Add all of the remove operation from csA first
+        if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
+          while(csA.ops[opAIdx].op === OpEnum.REMOVE) {
+            newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+            opAIdx += 1;
+          }
+        }
+
+        newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+
+        // Add the changeText for add operation
+        if (csA.ops[opAIdx].op === OpEnum.ADD) {
+          newCS.changeText += csA.changeText.substr(textAIdx, 1);
+          textAIdx += 1;
+        }
+        opAIdx += 1;
+        break;
+
+      case OpEnum.ADD:
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+        newCS.changeText += csB.changeText.substr(textBIdx, 1);
+        textBIdx += 1;
+        break;
+
+      case OpEnum.REMOVE:
+        newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
+        if (csA.ops[opAIdx].op === OpEnum.ADD) {
+          textAIdx += 1;
+        }
+        opAIdx += 1;
+        break;
+
+      default:
+        console.error('Invalid operation in composeCS.', csB.ops[opBIdx].op, opBIdx);
+        break;
+    }
+  }
+
+  // Add any remaining remove operations
+  while (opAIdx < csA.ops.length) {
+    if (csA.ops[opAIdx].op === OpEnum.REMOVE && csA.ops[opAIdx].len > 0) {
+      newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+    }
+
+    opAIdx += 1;
+  }
+
+  //console.log(JSON.stringify(newCS));
+  newCS.compress();
+  return newCS;
+};
+
 module.exports.ChangeSet = ChangeSet;
 module.exports.OpEnum = OpEnum;
 module.exports.newOp = newOp;
 module.exports.convertToChangeSet = convertToChangeSet;
 module.exports.followCS = followCS;
+module.exports.composeCS = composeCS;

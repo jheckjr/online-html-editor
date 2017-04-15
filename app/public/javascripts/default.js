@@ -13,7 +13,7 @@ socket.on('connect', function() {
 socket.on('serverHeadText', function(headtext) {
   // Received data from server, so can send data
   ackReceived = true;
-  console.log(headtext);
+
   // Init changesets
   let headCS = JSON.parse(headtext);
   clientCS.a = headCS;
@@ -28,12 +28,12 @@ socket.on('serverHeadText', function(headtext) {
 socket.on('serverAck', function() {
   console.log('Ack received');
   ackReceived = true;
-  console.log(JSON.stringify(clientCS.a));
-  console.log(JSON.stringify(clientCS.x));
+  //console.log(JSON.stringify(clientCS.a));
+  //console.log(JSON.stringify(clientCS.x));
   clientCS.a = composeCS(clientCS.a, clientCS.x);
   clientCS.x = new ChangeSet(clientCS.a.endLen);
-  console.log(JSON.stringify(clientCS.a));
-  console.log(JSON.stringify(clientCS.x));
+  //console.log(JSON.stringify(clientCS.a));
+  //console.log(JSON.stringify(clientCS.x));
 });
 
 // Server update from other client

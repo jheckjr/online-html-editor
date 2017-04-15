@@ -120,7 +120,7 @@ function initDocument() {
 
 initDocument();
 
-function updateHeadText(revNum, clientCS) {
+function updateCS(revNum, clientCS) {
   // If client revision is head revision, return clientCS
   if (revNum === revisions.length - 1) {
     return clientCS;
@@ -153,21 +153,24 @@ io.on('connection', function(socket) {
     console.log('Received update from client: ' + socket.id);
 
     // Update headText with new changeset
-    headText = updateHeadText(clients[socket.id].revNum, data);
+    let updatedCS = updateCS(clients[socket.id].revNum, data);
+    headText = cs.composeCS(headText, updatedCS);
 
     // Broadcast update to all other clients
     let msgObj = {
-      data: headText
+      data: updatedCS
     };
     socket.broadcast.emit('serverUpdate', JSON.stringify(msgObj));
     // Send acknowledgement back to sending client
     socket.emit('serverAck');
 
-    // TODO: Update all client revNums?
     let newRevNum = revisions.length;
+    // Update all client revNums
+    Object.keys(clients).forEach((id) => {
+      clients[id].revNum = newRevNum;
+    });
     // Store updated headText
     revisions.push(new RevisionRecord(headText, socket.id, newRevNum));
-    clients[socket.id].revNum = newRevNum;
   });
 
   // New client connection
@@ -178,47 +181,5 @@ io.on('connection', function(socket) {
     clients[id].revNum = revisions.length - 1;
 
     socket.emit('serverHeadText', JSON.stringify(headText));
-  });
-
-  socket.on('requestUpdate', function() {
-    console.log('Update requested');
-    let latestCS = {
-      startLen:8,
-      endLen:5,
-      ops:[{
-        op:"=",
-        len:1
-      },{
-        op:"+",
-        len:1
-      },{
-        op:"-",
-        len:5
-      },{
-        op:"=",
-        len:1
-      },{
-        op:"+",
-        len:2
-      },{
-        op:"-",
-        len:1
-      }],
-      changeText:"eow"
-    };
-
-    // Update headText with new changeset
-    headText = updateHeadText(0, latestCS);
-    console.log('HeadText updated. ', headText);
-
-    // Broadcast update to all other clients
-    let msg = {
-      data: headText
-    };
-    socket.emit('serverUpdate', JSON.stringify(msg));
-    console.log('Update sent');
-
-    // Store updated headText
-    revisions.push(new RevisionRecord(headText, 0, revisions.length));
   });
 });
