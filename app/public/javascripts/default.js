@@ -13,7 +13,7 @@ socket.on('connect', function() {
 socket.on('serverHeadText', function(headtext) {
   // Received data from server, so can send data
   ackReceived = true;
-
+  console.log(headtext);
   // Init changesets
   let headCS = JSON.parse(headtext);
   clientCS.a = headCS;
@@ -38,6 +38,7 @@ socket.on('serverAck', function() {
 
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
+  console.log(msg);
   let serverCS = convertToChangeSet(JSON.parse(msg).data);
   console.log('a' + JSON.stringify(clientCS.a));
   console.log('xinit' + JSON.stringify(clientCS.x));
@@ -61,7 +62,6 @@ socket.on('serverUpdate', function(msg) {
   console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
   console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
-  //let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
   let newViewCS = composeCS(viewCS, D);
   console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
@@ -103,9 +103,8 @@ function sendUpdate() {
     // Send latest client updates
     console.log(JSON.stringify(clientCS.y));
     let msg = {
-      id: socket.id,
       data: clientCS.y
-    }
+    };
     ackReceived = false;
     socket.emit('clientUpdate', JSON.stringify(msg));
 

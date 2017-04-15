@@ -253,8 +253,17 @@ function composeCS(changeSetA, changeSetB) {
   for (let opBIdx = 0; opBIdx < csB.ops.length; opBIdx++) {
     switch (csB.ops[opBIdx].op) {
       case OpEnum.EQUAL:
+        // Add all of the remove operation from csA first
+        if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
+          while(csA.ops[opAIdx].op === OpEnum.REMOVE) {
+            newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
+            opAIdx += 1;
+          }
+        }
+
         newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
 
+        // Add the changeText for add operation
         if (csA.ops[opAIdx].op === OpEnum.ADD) {
           newCS.changeText += csA.changeText.substr(textAIdx, 1);
           textAIdx += 1;
@@ -270,11 +279,6 @@ function composeCS(changeSetA, changeSetB) {
 
       case OpEnum.REMOVE:
         newCS.ops.push(JSON.parse(JSON.stringify(csB.ops[opBIdx])));
-        // if opA also remove and csA has more operations, add another remove op
-        /*if (csA.ops[opAIdx].op === OpEnum.REMOVE && numOpsA > csB.ops.length) {
-          newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
-          numOpsA -= 1;
-        }*/
         if (csA.ops[opAIdx].op === OpEnum.ADD) {
           textAIdx += 1;
         }

@@ -7,7 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('app:server');
 var http = require('http');
-var changeset = require('../controllers/server-change-set');
+var cs = require('../controllers/server-change-set');
 
 /**
  * Get port from environment and store in Express.
@@ -94,11 +94,10 @@ function onListening() {
  * Create socket.io server
  */
 var io = require('socket.io')(server);
-var cs = new changeset();
 
 function Client(id) {
   this.id = id;
-  this.revisionNum = 0;
+  this.revNum = 0;
 }
 
 function RevisionRecord(changeSet, sourceId, revNum) {
@@ -115,9 +114,6 @@ let revisions = [];
 
 function initDocument() {
   headText = new cs.ChangeSet(0);
-  headText.endLen = 8;
-  headText.changeText = 'baseball';
-  headText.ops = [cs.newOp(cs.OpEnum.ADD, 8)];
 
   revisions.push(new RevisionRecord(headText, 0, 0));
 }
@@ -153,19 +149,25 @@ io.on('connection', function(socket) {
   });
 
   socket.on('clientUpdate', function(msg) {
-    let msgObj = JSON.parse(msg);
-    console.log('Received update from client: ' + msgObj.id);
+    let data = JSON.parse(msg).data;
+    console.log('Received update from client: ' + socket.id);
 
     // Update headText with new changeset
-    headText = updateHeadText(clients[msgObj.id].revNum, msgObj.data);
+    headText = updateHeadText(clients[socket.id].revNum, data);
 
     // Broadcast update to all other clients
-    socket.broadcast.emit('serverUpdate', JSON.stringify(headText));
+    let msgObj = {
+      data: headText
+    };
+    socket.broadcast.emit('serverUpdate', JSON.stringify(msgObj));
     // Send acknowledgement back to sending client
     socket.emit('serverAck');
 
+    // TODO: Update all client revNums?
+    let newRevNum = revisions.length;
     // Store updated headText
-    revisions.push(new RevisionRecord(headText, msgObj.id, revisions.length));
+    revisions.push(new RevisionRecord(headText, socket.id, newRevNum));
+    clients[socket.id].revNum = newRevNum;
   });
 
   // New client connection
@@ -173,12 +175,13 @@ io.on('connection', function(socket) {
     console.log('New user connection. Id: ' + id);
     // Add client to list of clients
     clients[id] = new Client(id);
-    clients[id].revisionNum = revisions.length - 1;
+    clients[id].revNum = revisions.length - 1;
 
     socket.emit('serverHeadText', JSON.stringify(headText));
   });
 
   socket.on('requestUpdate', function() {
+    console.log('Update requested');
     let latestCS = {
       startLen:8,
       endLen:5,
@@ -206,13 +209,16 @@ io.on('connection', function(socket) {
 
     // Update headText with new changeset
     headText = updateHeadText(0, latestCS);
+    console.log('HeadText updated. ', headText);
 
     // Broadcast update to all other clients
-    socket.broadcast.emit('serverUpdate', JSON.stringify(headText));
+    let msg = {
+      data: headText
+    };
+    socket.emit('serverUpdate', JSON.stringify(msg));
+    console.log('Update sent');
 
     // Store updated headText
     revisions.push(new RevisionRecord(headText, 0, revisions.length));
   });
-
-  //socket.broadcast.emit()
 });
