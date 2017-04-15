@@ -7,47 +7,10 @@ let ackReceived = false;
 // Send client id to server on first connection
 socket.on('connect', function() {
   socket.emit('newClientId', socket.id);
-  let a = {
-    startLen: 8,
-    endLen: 5,
-    ops: [{
-      op: '=',
-      len: 2
-    }, {
-      op: '+',
-      len: 2
-    }, {
-      op: '-',
-      len: 5
-    }, {
-      op: '=',
-      len: 1
-    }],
-    changeText: 'si'
-  };
-  let b = {
-    startLen: 5,
-    endLen: 6,
-    ops: [{
-      op: '=',
-      len: 1
-    }, {
-      op: '+',
-      len: 1
-    }, {
-      op: '=',
-      len: 2
-    }, {
-      op: '+',
-      len: 2
-    }],
-    changeText: 'eow'
-  };
-  console.log(composeCS(a, b));
 });
 
 // Initialize changesets on connection
-socket.on('headtext', function(headtext) {
+socket.on('serverHeadText', function(headtext) {
   // Received data from server, so can send data
   ackReceived = true;
 
@@ -98,8 +61,8 @@ socket.on('serverUpdate', function(msg) {
   console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
   console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
-  let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-  //let newViewCS = composeCS(viewCS, D);
+  //let newViewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  let newViewCS = composeCS(viewCS, D);
   console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
 });

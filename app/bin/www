@@ -7,6 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('app:server');
 var http = require('http');
+var changeset = require('../controllers/server-change-set');
 
 /**
  * Get port from environment and store in Express.
@@ -93,59 +94,91 @@ function onListening() {
  * Create socket.io server
  */
 var io = require('socket.io')(server);
+var cs = new changeset();
+
+function Client(id) {
+  this.id = id;
+  this.revisionNum = 0;
+}
+
+function RevisionRecord(changeSet, sourceId, revNum) {
+  this.changeSet = cs.convertToChangeSet(JSON.parse(JSON.stringify(changeSet)));
+  this.sourceId = sourceId;
+  this.revNum = revNum;
+}
+
+let clients = {};
+// Most recent string representation of document
+let headText;
+// Document revisions
+let revisions = [];
+
+function initDocument() {
+  headText = new cs.ChangeSet(0);
+  headText.endLen = 8;
+  headText.changeText = 'baseball';
+  headText.ops = [cs.newOp(cs.OpEnum.ADD, 8)];
+
+  revisions.push(new RevisionRecord(headText, 0, 0));
+}
+
+initDocument();
+
+function updateHeadText(revNum, clientCS) {
+  // If client revision is head revision, return clientCS
+  if (revNum === revisions.length - 1) {
+    return clientCS;
+  }
+
+  let newCS = cs.convertToChangeSet(clientCS);
+  // for each rev from client revNum to head, perform followCS(revision, newCS)
+  for (let idx = revNum + 1; idx < revisions.length; idx++) {
+    newCS = cs.followCS(revisions[idx].changeSet, newCS);
+  }
+
+  return newCS;
+}
 
 // socket.io connection
 io.on('connection', function(socket) {
-  console.log('a user connected');
+
+  // Client disconnection
   socket.on('disconnect', function() {
-    console.log('user disconnected');
+    console.log('User disconnected. Id: ' + socket.id);
+
+    // Remove client if disconnected
+    if (clients[socket.id]) {
+      delete clients[socket.id];
+    }
   });
 
   socket.on('clientUpdate', function(msg) {
     let msgObj = JSON.parse(msg);
+    console.log('Received update from client: ' + msgObj.id);
 
-    console.log('Client id: ' + msgObj.id);
-    console.log(msgObj.data);
+    // Update headText with new changeset
+    headText = updateHeadText(clients[msgObj.id].revNum, msgObj.data);
 
-    io.emit('serverAck');
+    // Broadcast update to all other clients
+    socket.broadcast.emit('serverUpdate', JSON.stringify(headText));
+    // Send acknowledgement back to sending client
+    socket.emit('serverAck');
+
+    // Store updated headText
+    revisions.push(new RevisionRecord(headText, msgObj.id, revisions.length));
   });
 
+  // New client connection
   socket.on('newClientId', function(id) {
-    console.log('Id: ' + id);
-    /*let headtext = {
-      startLen: 0,
-      endLen: 11,
-      ops: [{
-        op: '+',
-        len: 11
-      }],
-      changeText: 'hello world'
-    };*/
-    let headtext = {
-      startLen: 0,
-      endLen: 8,
-      ops: [{
-        op: '+',
-        len: 8
-      }],
-      changeText: 'baseball'
-    };
-    io.emit('headtext', JSON.stringify(headtext));
+    console.log('New user connection. Id: ' + id);
+    // Add client to list of clients
+    clients[id] = new Client(id);
+    clients[id].revisionNum = revisions.length - 1;
+
+    socket.emit('serverHeadText', JSON.stringify(headText));
   });
 
   socket.on('requestUpdate', function() {
-    /*let latestCS = {
-      startLen: 11,
-      endLen: 25,
-      ops: [{
-        op: '=',
-        len: 11
-      }, {
-        op: '+',
-        len: 14
-      }],
-      changeText: '\nI\'m a server.'
-    };*/
     let latestCS = {
       startLen:8,
       endLen:5,
@@ -170,10 +203,15 @@ io.on('connection', function(socket) {
       }],
       changeText:"eow"
     };
-    let msg = {
-      data: latestCS
-    };
-    io.emit('serverUpdate', JSON.stringify(msg));
+
+    // Update headText with new changeset
+    headText = updateHeadText(0, latestCS);
+
+    // Broadcast update to all other clients
+    socket.broadcast.emit('serverUpdate', JSON.stringify(headText));
+
+    // Store updated headText
+    revisions.push(new RevisionRecord(headText, 0, revisions.length));
   });
 
   //socket.broadcast.emit()
