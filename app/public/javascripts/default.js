@@ -1,8 +1,8 @@
 'use strict';
 
-var socket = io();
+let socket = io();
 let ackReceived = false;
-// TODO: what if no ack received from server?
+let viewChanged = false;
 
 // Send client id to server on first connection
 socket.on('connect', function() {
@@ -22,6 +22,8 @@ socket.on('serverHeadText', function(headtext) {
 
   // Update viewable editor content
   editor.setValue(headCS.changeText);
+
+  sendUpdate();
 });
 
 // Server acknowledgement of received update (a<-ax, x<-identity)
@@ -38,32 +40,32 @@ socket.on('serverAck', function() {
 
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
-  console.log(msg);
+//  console.log(msg);
   let serverCS = convertToChangeSet(JSON.parse(msg).data);
-  console.log('a' + JSON.stringify(clientCS.a));
+  /*console.log('a' + JSON.stringify(clientCS.a));
   console.log('xinit' + JSON.stringify(clientCS.x));
   console.log('yinit' + JSON.stringify(clientCS.y));
-  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
+  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
   let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-  console.log('viewCS ' + JSON.stringify(viewCS));
+  /*console.log('viewCS ' + JSON.stringify(viewCS));
   console.log('Update received');
-  console.log(JSON.stringify(serverCS));
+  console.log(JSON.stringify(serverCS));*/
   clientCS.a = composeCS(clientCS.a, serverCS);
-  console.log('a' + JSON.stringify(clientCS.a));
+  /*console.log('a' + JSON.stringify(clientCS.a));
   console.log('xinit' + JSON.stringify(clientCS.x));
   console.log('yinit' + JSON.stringify(clientCS.y));
-  console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));
+  console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));*/
   let newX = followCS(serverCS, clientCS.x);
   let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
   let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
-  console.log('d' + JSON.stringify(D));
+  //console.log('d' + JSON.stringify(D));
   clientCS.x = newX;
   clientCS.y = newY;
-  console.log('x' + JSON.stringify(clientCS.x));
+  /*console.log('x' + JSON.stringify(clientCS.x));
   console.log('y' + JSON.stringify(clientCS.y));
-  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
+  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
   let newViewCS = composeCS(viewCS, D);
-  console.log('view' + JSON.stringify(newViewCS));
+  //console.log('view' + JSON.stringify(newViewCS));
   applyChangeToEditor(newViewCS);
 });
 
@@ -91,6 +93,7 @@ editor.on("change", function(instance, changeObj) {
 
   // Convert change object to changeset and add to unsubmitted changeset
   getCSFromCM(changeObj, instance.getValue());
+  viewChanged = true;
 
   if (debug) {
     console.log('y');
@@ -100,24 +103,23 @@ editor.on("change", function(instance, changeObj) {
 
 function sendUpdate() {
   if (ackReceived) {
-    // Send latest client updates
-    console.log(JSON.stringify(clientCS.y));
-    let msg = {
-      data: clientCS.y
-    };
-    ackReceived = false;
-    socket.emit('clientUpdate', JSON.stringify(msg));
+    // Only send update if there's been a change
+    if (viewChanged) {
+      // Send latest client updates
+      viewChanged = false;
+      let msg = {
+        data: clientCS.y
+      };
+      ackReceived = false;
+      socket.emit('clientUpdate', JSON.stringify(msg));
 
-    // Modify changesets (x<-y, y<-identity)
-    clientCS.x = JSON.parse(JSON.stringify(clientCS.y));
-    clientCS.y = new ChangeSet(clientCS.x.endLen);
-  } else {
-      console.error("Cannot send. Waiting for previous server ack.");
+      // Modify changesets (x<-y, y<-identity)
+      clientCS.x = JSON.parse(JSON.stringify(clientCS.y));
+      clientCS.y = new ChangeSet(clientCS.x.endLen);
+    }
   }
-}
 
-function requestUpdate() {
-  socket.emit('requestUpdate');
+  setTimeout('sendUpdate()', 500);
 }
 
 function applyChangeToEditor(viewCS) {
