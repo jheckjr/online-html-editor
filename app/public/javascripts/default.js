@@ -1,6 +1,6 @@
 'use strict';
 
-var socket = io();
+let socket = io();
 let ackReceived = false;
 let viewChanged = false;
 
@@ -117,15 +117,9 @@ function sendUpdate() {
       clientCS.x = JSON.parse(JSON.stringify(clientCS.y));
       clientCS.y = new ChangeSet(clientCS.x.endLen);
     }
-  } else {
-      console.error("Cannot send. Waiting for previous server ack.");
   }
 
   setTimeout('sendUpdate()', 500);
-}
-
-function requestUpdate() {
-  socket.emit('requestUpdate');
 }
 
 function applyChangeToEditor(viewCS) {

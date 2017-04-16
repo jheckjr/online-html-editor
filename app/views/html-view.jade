@@ -2,13 +2,13 @@ extends layout
 
 block scripts
   script(src="/javascripts/jquery.min.js")
+  script(src="/socket.io/socket.io.js")
 
 block content
-  h1 HTML View
-
-  div#viewDiv
+  p Rendered HTML will appear in the outlined box below.
+  <input type="button" onclick="location.href='/editor';" value="Edit HTML"/>
+  br
+  br
+  div#viewDiv(class="main")
 
   script(src="/javascripts/html-view.js")
-  script.
-    var htmlStr = !{inputStr};
-    loadHtml(htmlStr)

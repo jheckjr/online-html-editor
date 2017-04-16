@@ -7,7 +7,6 @@
 var app = require('../app');
 var debug = require('debug')('app:server');
 var http = require('http');
-var cs = require('../controllers/server-change-set');
 
 /**
  * Get port from environment and store in Express.
@@ -29,6 +28,12 @@ var server = http.createServer(app);
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
+
+/**
+ * Create socket.io service.
+ */
+
+var io = require('../controllers/socket-service')(server);
 
 /**
  * Normalize a port into a number, string, or false.
@@ -89,97 +94,3 @@ function onListening() {
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
 }
-
-/**
- * Create socket.io server
- */
-var io = require('socket.io')(server);
-
-function Client(id) {
-  this.id = id;
-  this.revNum = 0;
-}
-
-function RevisionRecord(changeSet, sourceId, revNum) {
-  this.changeSet = cs.convertToChangeSet(JSON.parse(JSON.stringify(changeSet)));
-  this.sourceId = sourceId;
-  this.revNum = revNum;
-}
-
-let clients = {};
-// Most recent string representation of document
-let headText;
-// Document revisions
-let revisions = [];
-
-function initDocument() {
-  headText = new cs.ChangeSet(0);
-
-  revisions.push(new RevisionRecord(headText, 0, 0));
-}
-
-initDocument();
-
-function updateCS(revNum, clientCS) {
-  // If client revision is head revision, return clientCS
-  if (revNum === revisions.length - 1) {
-    return clientCS;
-  }
-
-  let newCS = cs.convertToChangeSet(clientCS);
-  // for each rev from client revNum to head, perform followCS(revision, newCS)
-  for (let idx = revNum + 1; idx < revisions.length; idx++) {
-    newCS = cs.followCS(revisions[idx].changeSet, newCS);
-  }
-
-  return newCS;
-}
-
-// socket.io connection
-io.on('connection', function(socket) {
-
-  // Client disconnection
-  socket.on('disconnect', function() {
-    console.log('User disconnected. Id: ' + socket.id);
-
-    // Remove client if disconnected
-    if (clients[socket.id]) {
-      delete clients[socket.id];
-    }
-  });
-
-  socket.on('clientUpdate', function(msg) {
-    let data = JSON.parse(msg).data;
-    console.log('Received update from client: ' + socket.id);
-
-    // Update headText with new changeset
-    let updatedCS = updateCS(clients[socket.id].revNum, data);
-    headText = cs.composeCS(headText, updatedCS);
-
-    // Broadcast update to all other clients
-    let msgObj = {
-      data: updatedCS
-    };
-    socket.broadcast.emit('serverUpdate', JSON.stringify(msgObj));
-    // Send acknowledgement back to sending client
-    socket.emit('serverAck');
-
-    let newRevNum = revisions.length;
-    // Update all client revNums
-    Object.keys(clients).forEach((id) => {
-      clients[id].revNum = newRevNum;
-    });
-    // Store updated headText
-    revisions.push(new RevisionRecord(headText, socket.id, newRevNum));
-  });
-
-  // New client connection
-  socket.on('newClientId', function(id) {
-    console.log('New user connection. Id: ' + id);
-    // Add client to list of clients
-    clients[id] = new Client(id);
-    clients[id].revNum = revisions.length - 1;
-
-    socket.emit('serverHeadText', JSON.stringify(headText));
-  });
-});

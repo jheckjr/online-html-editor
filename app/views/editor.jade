@@ -10,13 +10,10 @@ block scripts
   script(src="/javascripts/client-change-set.js")
 
 block content
-  h1 HTML Editor
-  p Please enter HTML code into the area below to create a page.
-
-  div(class="editor-div")
-  br
-  <input type="button" onclick="sendUpdate();" value="Send Update"/>
-  <input type="button" onclick="requestUpdate();" value="Req Update"/>
+  p Please enter HTML into the editor below to create a page.
   <input type="button" onclick="location.href='/viewhtml';" value="View Rendered HTML"/>
+  br
+  br
+  div(class="editor-div main")
 
   script(src="/javascripts/default.js")
