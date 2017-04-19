@@ -17,13 +17,16 @@ module.exports = function(server) {
 
     socket.on('clientUpdate', function(msg) {
       console.log('Received update from client: ' + socket.id);
-      let data = JSON.parse(msg).data;
+      let parsedMsg = JSON.parse(msg);
+      let data = parsedMsg.data;
+      let revNum = parsedMsg.revNum;
 
       // Update the state
-      let updatedCS = serverState.updateState(socket.id, data);
+      let update = serverState.updateState(socket.id, data, revNum);
       // Broadcast update to all other clients
       let msgObj = {
-        data: updatedCS
+        data: update.cs,
+        revNum: update.revNum
       };
       socket.broadcast.emit('serverUpdate', JSON.stringify(msgObj));
 
@@ -35,9 +38,14 @@ module.exports = function(server) {
     socket.on('newClientId', function(id) {
       console.log('New user connection. Id: ' + id);
       // Add client
-      serverState.addClient(socket.id);
+      let revNum = serverState.addClient(socket.id);
       // Send latest version of document to new client
-      socket.emit('serverHeadText', JSON.stringify(serverState.headText));
+      socket.emit('serverHeadText', JSON.stringify(serverState.headText), revNum);
+    });
+
+    // Client acknowledgement of update
+    socket.on('clientAck', function(revNum) {
+      serverState.updateClientRev(socket.id, revNum);
     });
 
     // Get the latest document revision for viewing

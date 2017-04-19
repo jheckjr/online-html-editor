@@ -3,18 +3,22 @@
 let socket = io();
 let ackReceived = false;
 let viewChanged = false;
+let latestRevNum = -1;
 
 // Send client id to server on first connection
 socket.on('connect', function() {
-  socket.emit('newClientId', socket.id);
+  if (latestRevNum === -1) {
+    socket.emit('newClientId', socket.id);
+  }
 });
 
 // Initialize changesets on connection
-socket.on('serverHeadText', function(headtext) {
+socket.on('serverHeadText', function(headtext, revNum) {
   // Received data from server, so can send data
   ackReceived = true;
 
   // Init changesets
+  let latestRevNum = revNum;
   let headCS = JSON.parse(headtext);
   clientCS.a = headCS;
   clientCS.x = new ChangeSet(headCS.endLen);
@@ -30,77 +34,70 @@ socket.on('serverHeadText', function(headtext) {
 socket.on('serverAck', function() {
   console.log('Ack received');
   ackReceived = true;
-  //console.log(JSON.stringify(clientCS.a));
-  //console.log(JSON.stringify(clientCS.x));
   clientCS.a = composeCS(clientCS.a, clientCS.x);
   clientCS.x = new ChangeSet(clientCS.a.endLen);
-  //console.log(JSON.stringify(clientCS.a));
-  //console.log(JSON.stringify(clientCS.x));
 });
 
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
-//  console.log(msg);
-  let serverCS = convertToChangeSet(JSON.parse(msg).data);
-  /*console.log('a' + JSON.stringify(clientCS.a));
-  console.log('xinit' + JSON.stringify(clientCS.x));
-  console.log('yinit' + JSON.stringify(clientCS.y));
-  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
-  let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-  /*console.log('viewCS ' + JSON.stringify(viewCS));
-  console.log('Update received');
-  console.log(JSON.stringify(serverCS));*/
-  clientCS.a = composeCS(clientCS.a, serverCS);
-  /*console.log('a' + JSON.stringify(clientCS.a));
-  console.log('xinit' + JSON.stringify(clientCS.x));
-  console.log('yinit' + JSON.stringify(clientCS.y));
-  console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));*/
-  let newX = followCS(serverCS, clientCS.x);
-  let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
-  let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
-  //console.log('d' + JSON.stringify(D));
-  clientCS.x = newX;
-  clientCS.y = newY;
-  /*console.log('x' + JSON.stringify(clientCS.x));
-  console.log('y' + JSON.stringify(clientCS.y));
-  console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
-  let newViewCS = composeCS(viewCS, D);
-  //console.log('view' + JSON.stringify(newViewCS));
-  applyChangeToEditor(newViewCS);
+  let parsedMsg = JSON.parse(msg);
+
+  // Check that update can be applied (revNum is next in sequence)
+  if (parsedMsg.revNum === (latestRevNum + 1)) {
+    socket.emit('clientAck', parsedMsg.revNum);
+    latestRevNum = parsedMsg.revNum;
+    let serverCS = convertToChangeSet(parsedMsg.data);
+    /*console.log('a' + JSON.stringify(clientCS.a));
+    console.log('xinit' + JSON.stringify(clientCS.x));
+    console.log('yinit' + JSON.stringify(clientCS.y));
+    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
+    let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+    /*console.log('viewCS ' + JSON.stringify(viewCS));
+    console.log('Update received');
+    console.log(JSON.stringify(serverCS));*/
+    clientCS.a = composeCS(clientCS.a, serverCS);
+    /*console.log('a' + JSON.stringify(clientCS.a));
+    console.log('xinit' + JSON.stringify(clientCS.x));
+    console.log('yinit' + JSON.stringify(clientCS.y));
+    console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));*/
+    let newX = followCS(serverCS, clientCS.x);
+    let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
+    let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
+    //console.log('d' + JSON.stringify(D));
+    clientCS.x = newX;
+    clientCS.y = newY;
+    /*console.log('x' + JSON.stringify(clientCS.x));
+    console.log('y' + JSON.stringify(clientCS.y));
+    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
+    let newViewCS = composeCS(viewCS, D);
+    //console.log('view' + JSON.stringify(newViewCS));
+    applyChangeToEditor(newViewCS);
+  } else {
+
+  }
 });
 
+// Create the editor
 var div = document.getElementsByClassName("editor-div")[0];
 var inputArea = document.createElement('textarea');
 div.appendChild(inputArea);
-
 var editor = CodeMirror.fromTextArea(inputArea, {
   lineNumbers: true
 });
 
+// Update the changesets on user input to the editor
 editor.on("change", function(instance, changeObj) {
   // Do nothing if setValue (only used in initialization)
   if (changeObj.origin === 'setValue') {
     return;
   }
 
-  var debug = false;
-  if (debug) {
-    console.log(changeObj);
-    console.log(JSON.stringify(instance.getValue()));
-    console.log('y_init');
-    console.log(JSON.stringify(clientCS.y));
-  }
-
   // Convert change object to changeset and add to unsubmitted changeset
   getCSFromCM(changeObj, instance.getValue());
   viewChanged = true;
-
-  if (debug) {
-    console.log('y');
-    console.log(JSON.stringify(clientCS.y));
-  }
 });
 
+// Send any user updates to the server (send every 500 ms if change)
 function sendUpdate() {
   if (ackReceived) {
     // Only send update if there's been a change
@@ -108,7 +105,8 @@ function sendUpdate() {
       // Send latest client updates
       viewChanged = false;
       let msg = {
-        data: clientCS.y
+        data: clientCS.y,
+        revNum: latestRevNum
       };
       ackReceived = false;
       socket.emit('clientUpdate', JSON.stringify(msg));

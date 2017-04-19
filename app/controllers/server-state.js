@@ -13,6 +13,8 @@ let serverState = module.exports = {
   addClient: function(id) {
     this.clients[id] = new Client(id);
     this.clients[id].revNum = this.revisions.length - 1;
+
+    return this.clients[id].revNum;
   },
 
   // Remove a client from the list, if the client exists
@@ -23,20 +25,20 @@ let serverState = module.exports = {
   },
 
   // Update the state based on a new changeset from a client
-  updateState: function(id, cs) {
+  updateState: function(id, cs, revNum) {
     // Update the latest version of the document
     let updatedCS = updateCS(this.clients[id].revNum, cs);
     this.headText = csService.composeCS(this.headText, updatedCS);
 
-    // Update the client revision numbers
-    let newRevNum = this.revisions.length;
-    Object.keys(this.clients).forEach((id) => {
-      this.clients[id].revNum = newRevNum;
-    });
     // Store updated version of the document
+    let newRevNum = this.revisions.length;
     this.revisions.push(new RevisionRecord(this.headText, id, newRevNum));
+    console.log("***REVISIONS***\n", this.headText);
 
-    return updatedCS;
+    return {
+      data: updatedCS,
+      revNum: newRevNum
+    };
   }
 };
 
@@ -60,10 +62,10 @@ function updateCS(revNum, clientCS) {
     return clientCS;
   }
 
-  let newCS = cs.convertToChangeSet(clientCS);
+  let newCS = csService.convertToChangeSet(clientCS);
   // for each rev from client revNum to head, perform followCS(revision, newCS)
   for (let idx = revNum + 1; idx < serverState.revisions.length; idx++) {
-    newCS = cs.followCS(serverState.revisions[idx].changeSet, newCS);
+    newCS = csService.followCS(serverState.revisions[idx].changeSet, newCS);
   }
 
   return newCS;

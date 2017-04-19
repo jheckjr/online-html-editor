@@ -1,5 +1,9 @@
 extends layout
 
 block content
-  h1= title
-  p Welcome to #{title}
+  p.
+    This is a collaborative online HTML editor that supports editing one document.
+    To edit the document, click the Edit button below. To view the document, click
+    the View button below.
+  <input type="button" onclick="location.href='/editor';" value="Edit"/>
+  <input type="button" onclick="location.href='/viewhtml';" value="View"/>
