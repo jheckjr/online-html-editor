@@ -18,7 +18,7 @@ socket.on('serverHeadText', function(headtext, revNum) {
   ackReceived = true;
 
   // Init changesets
-  let latestRevNum = revNum;
+  latestRevNum = revNum;
   let headCS = JSON.parse(headtext);
   clientCS.a = headCS;
   clientCS.x = new ChangeSet(headCS.endLen);
@@ -31,8 +31,9 @@ socket.on('serverHeadText', function(headtext, revNum) {
 });
 
 // Server acknowledgement of received update (a<-ax, x<-identity)
-socket.on('serverAck', function() {
+socket.on('serverAck', function(revNum) {
   console.log('Ack received');
+  latestRevNum = revNum;
   ackReceived = true;
   clientCS.a = composeCS(clientCS.a, clientCS.x);
   clientCS.x = new ChangeSet(clientCS.a.endLen);
@@ -41,41 +42,60 @@ socket.on('serverAck', function() {
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
   let parsedMsg = JSON.parse(msg);
-
+  console.log(parsedMsg, latestRevNum);
   // Check that update can be applied (revNum is next in sequence)
   if (parsedMsg.revNum === (latestRevNum + 1)) {
-    socket.emit('clientAck', parsedMsg.revNum);
     latestRevNum = parsedMsg.revNum;
     let serverCS = convertToChangeSet(parsedMsg.data);
-    /*console.log('a' + JSON.stringify(clientCS.a));
+    console.log('a' + JSON.stringify(clientCS.a));
     console.log('xinit' + JSON.stringify(clientCS.x));
     console.log('yinit' + JSON.stringify(clientCS.y));
-    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
+    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
     let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-    /*console.log('viewCS ' + JSON.stringify(viewCS));
+    console.log('viewCS ' + JSON.stringify(viewCS));
     console.log('Update received');
-    console.log(JSON.stringify(serverCS));*/
+    console.log(JSON.stringify(serverCS));
     clientCS.a = composeCS(clientCS.a, serverCS);
-    /*console.log('a' + JSON.stringify(clientCS.a));
+    console.log('a' + JSON.stringify(clientCS.a));
     console.log('xinit' + JSON.stringify(clientCS.x));
     console.log('yinit' + JSON.stringify(clientCS.y));
-    console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));*/
+    console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));
     let newX = followCS(serverCS, clientCS.x);
     let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
     let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
-    //console.log('d' + JSON.stringify(D));
+    console.log('d' + JSON.stringify(D));
     clientCS.x = newX;
     clientCS.y = newY;
-    /*console.log('x' + JSON.stringify(clientCS.x));
+    console.log('x' + JSON.stringify(clientCS.x));
     console.log('y' + JSON.stringify(clientCS.y));
-    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));*/
+    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
     let newViewCS = composeCS(viewCS, D);
-    //console.log('view' + JSON.stringify(newViewCS));
+    console.log('view' + JSON.stringify(newViewCS));
     applyChangeToEditor(newViewCS);
   } else {
-
+    // Ask server for changeset relative to client's last known revision
+    socket.emit('clientFastForward', latestRevNum);
   }
 });
+
+// Server fast forward update
+socket.on('serverFastForward', function(msg) {
+  let parsedMsg = JSON.parse(msg);
+  latestRevNum = parsedMsg.revNum;
+
+  let serverCS = convertToChangeSet(parsedMsg.data);
+  let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
+  clientCS.a = composeCS(clientCS.a, serverCS);
+
+  let newX = followCS(serverCS, clientCS.x);
+  let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
+  let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
+  clientCS.x = newX;
+  clientCS.y = newY;
+
+  let newViewCS = composeCS(viewCS, D);
+  applyChangeToEditor(newViewCS);
+})
 
 // Create the editor
 var div = document.getElementsByClassName("editor-div")[0];
@@ -105,8 +125,7 @@ function sendUpdate() {
       // Send latest client updates
       viewChanged = false;
       let msg = {
-        data: clientCS.y,
-        revNum: latestRevNum
+        data: clientCS.y
       };
       ackReceived = false;
       socket.emit('clientUpdate', JSON.stringify(msg));

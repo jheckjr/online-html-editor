@@ -25,19 +25,32 @@ let serverState = module.exports = {
   },
 
   // Update the state based on a new changeset from a client
-  updateState: function(id, cs, revNum) {
+  updateState: function(id, cs) {
     // Update the latest version of the document
     let updatedCS = updateCS(this.clients[id].revNum, cs);
     this.headText = csService.composeCS(this.headText, updatedCS);
 
     // Store updated version of the document
     let newRevNum = this.revisions.length;
-    this.revisions.push(new RevisionRecord(this.headText, id, newRevNum));
-    console.log("***REVISIONS***\n", this.headText);
+    Object.keys(this.clients).forEach((id) => {
+      this.clients[id].revNum = newRevNum;
+    });
+    this.revisions.push(new RevisionRecord(updatedCS, id, newRevNum));
+    console.log("***REVISIONS***\n", updatedCS);
 
     return {
       data: updatedCS,
       revNum: newRevNum
+    };
+  },
+
+  // Fast forward a client from its known revision to the latest revision
+  clientFF: function(id, revNum) {
+    let ffCS = fastForwardCS(revNum);
+
+    return {
+      data: ffCS,
+      revNum: this.revisions.length - 1
     };
   }
 };
@@ -69,4 +82,19 @@ function updateCS(revNum, clientCS) {
   }
 
   return newCS;
+}
+
+// Create a changeset of composed changesets from a revision to the latest revision
+function fastForwardCS(revNum) {
+  // Return the latest revision if already at the latest (shouldn't occur)
+  if (revNum === serverState.revisions.length - 1) {
+    return serverState.revisions[revNum].changeSet;
+  }
+
+  let ffCS = serverState.revisions[revNum + 1].changeSet;
+  for (let idx = revNum + 2; idx < serverState.revisions.length; idx++) {
+    ffCS = csService.composeCS(ffCS, serverState.revisions[idx].changeSet);
+  }
+
+  return ffCS;
 }

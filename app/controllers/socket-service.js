@@ -19,19 +19,14 @@ module.exports = function(server) {
       console.log('Received update from client: ' + socket.id);
       let parsedMsg = JSON.parse(msg);
       let data = parsedMsg.data;
-      let revNum = parsedMsg.revNum;
 
       // Update the state
-      let update = serverState.updateState(socket.id, data, revNum);
+      let update = serverState.updateState(socket.id, data);
       // Broadcast update to all other clients
-      let msgObj = {
-        data: update.cs,
-        revNum: update.revNum
-      };
-      socket.broadcast.emit('serverUpdate', JSON.stringify(msgObj));
+      socket.broadcast.emit('serverUpdate', JSON.stringify(update));
 
       // Send acknowledgement back to sending client
-      socket.emit('serverAck');
+      socket.emit('serverAck', update.revNum);
     });
 
     // New client connection
@@ -43,9 +38,10 @@ module.exports = function(server) {
       socket.emit('serverHeadText', JSON.stringify(serverState.headText), revNum);
     });
 
-    // Client acknowledgement of update
-    socket.on('clientAck', function(revNum) {
-      serverState.updateClientRev(socket.id, revNum);
+    // Send client an update to fast forward to latest revision
+    socket.on('clientFastForward', function(clientRevNum) {
+      let update = serverState.clientFF(socket.id, clientRevNum);
+      socket.emit('serverFastForward', JSON.stringify(update));
     });
 
     // Get the latest document revision for viewing

@@ -41,7 +41,6 @@ function ChangeSet(startLen) {
   // expandAdds is boolean for expanding add operations
   this.expand = function(expandAdds) {
     let newOps = [];
-    let newEndLen = 0;
     for (let idx = 0; idx < this.ops.length; idx++) {
       // Keep adds as they are
       if (this.ops[idx].op === OpEnum.ADD) {
@@ -49,23 +48,19 @@ function ChangeSet(startLen) {
           // Expand to be multiple ops of length one
           for (let newIdx = 0; newIdx < this.ops[idx].len; newIdx++) {
             newOps.push(newOp(this.ops[idx].op, 1));
-            newEndLen += 1;
           }
         } else {
           newOps.push(JSON.parse(JSON.stringify(this.ops[idx])));
-          newEndLen += 1;
         }
       } else {
         // Expand removes and equals to be multiple ops of length one
         for (let newIdx = 0; newIdx < this.ops[idx].len; newIdx++) {
           newOps.push(newOp(this.ops[idx].op, 1));
-          newEndLen += 1;
         }
       }
     }
 
     this.ops = newOps;
-    this.endLen = newEndLen;
   };
 }
 
@@ -230,7 +225,7 @@ function getCSFromCM(changeObj, content) {
 function composeCS(changeSetA, changeSetB) {
   // Check that the lengths match
   if (changeSetA.endLen != changeSetB.startLen) {
-    return new ChangeSet(0);
+    return new ChangeSet(changeSetA.endLen);
   }
 
   // Make copies of input changesets
@@ -248,7 +243,6 @@ function composeCS(changeSetA, changeSetB) {
   let textAIdx = 0; // index of change text in csA
   let textBIdx = 0; // index of change text in csB
   let opAIdx = 0; // index of current operation in csA
-  let numOpsA = csA.ops.length; // number of operations in csA
 
   for (let opBIdx = 0; opBIdx < csB.ops.length; opBIdx++) {
     switch (csB.ops[opBIdx].op) {
@@ -293,7 +287,7 @@ function composeCS(changeSetA, changeSetB) {
 
   // Add any remaining remove operations
   while (opAIdx < csA.ops.length) {
-    if (csA.ops[opAIdx].op === OpEnum.REMOVE && csA.ops[opAIdx].len > 0) {
+    if (csA.ops[opAIdx].op === OpEnum.REMOVE) {
       newCS.ops.push(JSON.parse(JSON.stringify(csA.ops[opAIdx])));
     }
 
@@ -308,7 +302,7 @@ function composeCS(changeSetA, changeSetB) {
 function followCS(changeSetA, changeSetB) {
   if (changeSetA.startLen != changeSetB.startLen) {
     console.error('Changeset start lengths are different for merge.');
-    return new ChangeSet(0);
+    return new ChangeSet(changeSetA.endLen);
   }
 
   // Make copies of input changesets
@@ -342,6 +336,14 @@ function followCS(changeSetA, changeSetB) {
       newCS.ops.push(newOp(OpEnum.EQUAL, csA.ops[opAIdx].len));
       opAIdx += 1;
       opBIdx += 1;
+    } else if (csA.startLen === csA.endLen && csA.ops[opAIdx].op === OpEnum.REMOVE) {
+      // If there's a remove in an identity, skip the remove
+      opAIdx += 1;
+      console.log(JSON.stringify(csA), opAIdx);
+    } else if (csB.startLen === csB.endLen && csB.ops[opBIdx].op === OpEnum.REMOVE) {
+      // If there's a remove in an identity, skip the remove
+      opBIdx += 1;
+      console.log(JSON.stringify(csB), opBIdx);
     } else {
       // If one or both is remove, push remove
       newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));
