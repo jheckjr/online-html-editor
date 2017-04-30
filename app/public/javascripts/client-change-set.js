@@ -1,6 +1,6 @@
 'use strict';
 
-// Create identity changeset
+// Create changeset
 function ChangeSet(startLen) {
   this.startLen = startLen;
   this.endLen = startLen;
@@ -10,6 +10,7 @@ function ChangeSet(startLen) {
   }
   this.changeText = '';
 
+  // Compress operations array to remove consecutive operations of same type
   this.compress = function() {
     let newOps = [];
     let newEndLen = 0;
@@ -38,6 +39,7 @@ function ChangeSet(startLen) {
     }
   };
 
+  // Expand operations array so each operation is of length 1
   // expandAdds is boolean for expanding add operations
   this.expand = function(expandAdds) {
     let newOps = [];
@@ -76,6 +78,7 @@ let OpEnum = {
   EQUAL: '='
 };
 
+// Create new operation
 function newOp(op, opLength) {
   return {
     op: op,
@@ -219,9 +222,7 @@ function getCSFromCM(changeObj, content) {
   }
 }
 
-/*
- * Compose two changesets together
- */
+// Compose two changesets together
 function composeCS(changeSetA, changeSetB) {
   // Check that the lengths match
   if (changeSetA.endLen != changeSetB.startLen) {
@@ -294,11 +295,11 @@ function composeCS(changeSetA, changeSetB) {
     opAIdx += 1;
   }
 
-  //console.log(JSON.stringify(newCS));
   newCS.compress();
   return newCS;
 }
 
+// Follows function to merge concurrent changeSets
 function followCS(changeSetA, changeSetB) {
   if (changeSetA.startLen != changeSetB.startLen) {
     console.error('Changeset start lengths are different for merge.');
@@ -339,11 +340,9 @@ function followCS(changeSetA, changeSetB) {
     } else if (csA.startLen === csA.endLen && csA.ops[opAIdx].op === OpEnum.REMOVE) {
       // If there's a remove in an identity, skip the remove
       opAIdx += 1;
-      console.log(JSON.stringify(csA), opAIdx);
     } else if (csB.startLen === csB.endLen && csB.ops[opBIdx].op === OpEnum.REMOVE) {
       // If there's a remove in an identity, skip the remove
       opBIdx += 1;
-      console.log(JSON.stringify(csB), opBIdx);
     } else {
       // If one or both is remove, push remove
       newCS.ops.push(newOp(OpEnum.REMOVE, csA.ops[opAIdx].len));

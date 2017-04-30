@@ -1,6 +1,6 @@
 'use strict';
 
-// Create identity changeset
+// Create changeset
 var ChangeSet = function(startLen) {
   this.startLen = startLen;
   this.endLen = startLen;
@@ -10,6 +10,7 @@ var ChangeSet = function(startLen) {
   }
   this.changeText = '';
 
+  // Compress operations array to remove consecutive operations of same type
   this.compress = function() {
     let newOps = [];
     let newEndLen = 0;
@@ -38,6 +39,7 @@ var ChangeSet = function(startLen) {
     }
   };
 
+  // Expand operations array so each operation is of length 1
   // expandAdds is boolean for expanding add operations
   this.expand = function(expandAdds) {
     let newOps = [];
@@ -70,6 +72,7 @@ var OpEnum = {
   EQUAL: '='
 };
 
+// Create new operation
 var newOp = function(op, opLength) {
   return {
     op: op,
@@ -88,6 +91,7 @@ var convertToChangeSet = function(data) {
   return newCS;
 };
 
+// Follows function to merge concurrent changeSets
 var followCS = function(changeSetA, changeSetB) {
   if (changeSetA.startLen != changeSetB.startLen) {
     console.error('Changeset start lengths are different for merge.', changeSetA, changeSetB);
@@ -164,9 +168,7 @@ var followCS = function(changeSetA, changeSetB) {
   return newCS;
 };
 
-/*
- * Compose two changesets together
- */
+// Compose two consecutive changeSets together
 var composeCS = function(changeSetA, changeSetB) {
   // Check that the lengths match
   if (changeSetA.endLen != changeSetB.startLen) {
@@ -239,7 +241,6 @@ var composeCS = function(changeSetA, changeSetB) {
     opAIdx += 1;
   }
 
-  //console.log(JSON.stringify(newCS));
   newCS.compress();
   return newCS;
 };

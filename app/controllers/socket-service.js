@@ -15,6 +15,7 @@ module.exports = function(server) {
       serverState.removeClient(socket.id);
     });
 
+    // New changeset from a client
     socket.on('clientUpdate', function(msg) {
       console.log('Received update from client: ' + socket.id);
       let parsedMsg = JSON.parse(msg);
@@ -46,7 +47,6 @@ module.exports = function(server) {
 
     // Get the latest document revision for viewing
     socket.on('getDocument', function() {
-      console.log('Document requested.');
       // Send the latest document revision
       socket.emit('serverHeadText', JSON.stringify(serverState.headText));
     });

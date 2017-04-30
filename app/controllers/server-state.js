@@ -36,7 +36,6 @@ let serverState = module.exports = {
       this.clients[id].revNum = newRevNum;
     });
     this.revisions.push(new RevisionRecord(updatedCS, id, newRevNum));
-    console.log("***REVISIONS***\n", updatedCS);
 
     return {
       data: updatedCS,

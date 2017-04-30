@@ -1,9 +1,9 @@
 'use strict';
 
 let socket = io();
-let ackReceived = false;
-let viewChanged = false;
-let latestRevNum = -1;
+let ackReceived = false;  // acknowledgement received from server for last change
+let viewChanged = false;  // user has edited the document/view
+let latestRevNum = -1;  // number of last revision received from server
 
 // Send client id to server on first connection
 socket.on('connect', function() {
@@ -32,7 +32,6 @@ socket.on('serverHeadText', function(headtext, revNum) {
 
 // Server acknowledgement of received update (a<-ax, x<-identity)
 socket.on('serverAck', function(revNum) {
-  console.log('Ack received');
   latestRevNum = revNum;
   ackReceived = true;
   clientCS.a = composeCS(clientCS.a, clientCS.x);
@@ -42,35 +41,21 @@ socket.on('serverAck', function(revNum) {
 // Server update from other client
 socket.on('serverUpdate', function(msg) {
   let parsedMsg = JSON.parse(msg);
-  console.log(parsedMsg, latestRevNum);
+
   // Check that update can be applied (revNum is next in sequence)
   if (parsedMsg.revNum === (latestRevNum + 1)) {
     latestRevNum = parsedMsg.revNum;
     let serverCS = convertToChangeSet(parsedMsg.data);
-    console.log('a' + JSON.stringify(clientCS.a));
-    console.log('xinit' + JSON.stringify(clientCS.x));
-    console.log('yinit' + JSON.stringify(clientCS.y));
-    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
     let viewCS = composeCS(clientCS.a, composeCS(clientCS.x, clientCS.y));
-    console.log('viewCS ' + JSON.stringify(viewCS));
-    console.log('Update received');
-    console.log(JSON.stringify(serverCS));
     clientCS.a = composeCS(clientCS.a, serverCS);
-    console.log('a' + JSON.stringify(clientCS.a));
-    console.log('xinit' + JSON.stringify(clientCS.x));
-    console.log('yinit' + JSON.stringify(clientCS.y));
-    console.log('f(x,b)' + JSON.stringify(followCS(clientCS.x, serverCS)));
+
     let newX = followCS(serverCS, clientCS.x);
     let newY = followCS(followCS(clientCS.x, serverCS), clientCS.y);
     let D = followCS(clientCS.y, followCS(clientCS.x, serverCS));
-    console.log('d' + JSON.stringify(D));
     clientCS.x = newX;
     clientCS.y = newY;
-    console.log('x' + JSON.stringify(clientCS.x));
-    console.log('y' + JSON.stringify(clientCS.y));
-    console.log('c(x,y)' + JSON.stringify(composeCS(clientCS.x, clientCS.y)));
+
     let newViewCS = composeCS(viewCS, D);
-    console.log('view' + JSON.stringify(newViewCS));
     applyChangeToEditor(newViewCS);
   } else {
     // Ask server for changeset relative to client's last known revision
@@ -139,6 +124,7 @@ function sendUpdate() {
   setTimeout('sendUpdate()', 500);
 }
 
+// Update the view with the new changeset
 function applyChangeToEditor(viewCS) {
   let editorContent = editor.getValue();
   let contentIdx = 0;
